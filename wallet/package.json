@@ -1,0 +1,33 @@
+{
+  "name": "ephemeral-key-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "derive:demo": "tsx src/cli/derive-demo.ts",
+    "sign:demo": "tsx src/cli/sign-demo.ts",
+    "prepare:init": "tsx src/cli/prepare-local-init.ts",
+    "state:init": "tsx src/cli/create-initial-state.ts",
+    "sync": "tsx src/cli/sync.ts",
+    "execute:set-number": "tsx src/cli/execute-set-number.ts",
+    "execute:target-revert": "tsx src/cli/execute-target-revert.ts",
+    "execute:expired-set-number": "tsx src/cli/execute-expired-set-number.ts",
+    "execute:invalid-next-auth": "tsx src/cli/execute-invalid-next-auth.ts",
+    "recover": "tsx src/cli/recover.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "latest",
+    "@scure/bip32": "latest",
+    "@scure/bip39": "latest",
+    "viem": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
