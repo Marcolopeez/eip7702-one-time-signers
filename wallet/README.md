@@ -385,7 +385,6 @@ The wallet module currently assumes a local/developer environment and has import
 - no multi-device coordination;
 - no production transaction replacement or dropped-transaction UX;
 - no event indexing or full transaction history;
-- no ERC-4337 bundler or paymaster integration;
 - JSON state is used for development convenience only.
 
 The module is useful for validating the account model and local execution flows, not for managing real assets.

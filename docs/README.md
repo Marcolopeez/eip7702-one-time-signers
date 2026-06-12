@@ -2,8 +2,6 @@
 
 This document describes the design decisions behind `EphemeralKeyAccount` and the companion TypeScript wallet.
 
-The goal is not to present the project as a production wallet. The goal is to make the current prototype easier to review, audit, and extend.
-
 ## Motivation
 
 The experiment studies a minimal EIP-7702 account controlled by rotating ECDSA signers.
@@ -390,4 +388,3 @@ Potential next steps:
 - refine partial recovery semantics at the contract level;
 - add optional multi-recovery-key policy;
 - explore post-quantum or hybrid recovery mechanisms;
-- evaluate ERC-4337 integration separately from the core one-time-key model.

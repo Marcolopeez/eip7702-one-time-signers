@@ -89,19 +89,6 @@ delegated EOA using EphemeralKeyAccount code
   uses one-time recovery keys to restore the account
 ```
 
-The wallet and contract deliberately split responsibilities:
-
-| Responsibility | Enforced by |
-|---|---|
-| Signature validity | Contract |
-| Current signer rotation | Contract |
-| Preventing on-chain signer reuse | Contract `isConsumedOrReservedSigner` |
-| Avoiding reuse of locally signed keys | Wallet local state |
-| Selecting fresh next keys | Wallet + on-chain reads |
-| Treating pending signatures as burned | Wallet |
-| Recovery from `PAUSED` | Contract + wallet |
-| Secure key storage | Not implemented |
-
 ## Threat model
 
 This prototype assumes an adversary that may eventually recover an ECDSA private key after observing a valid signature from that key. Under this model:
@@ -201,7 +188,6 @@ Not implemented / not production-ready:
 - multi-device coordination;
 - event indexing or durable transaction history;
 - production recovery UX;
-- ERC-4337 `EntryPoint`, bundler, paymaster, or gas sponsorship;
 - formal verification;
 - production-grade mempool, replacement, and dropped-transaction handling.
 
