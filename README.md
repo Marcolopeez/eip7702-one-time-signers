@@ -2,13 +2,6 @@
 
 This repository is an experimental Ethereum account project built around EIP-7702 delegation, one-time ECDSA authorization keys, and one-time recovery keys.
 
-The project explores a strict key-consumption model:
-
-```text
-Once a valid signature from auth[i] has been produced or observed,
-auth[i] must be considered burned and must never remain the active account signer.
-```
-
 The code is research-oriented. It is not production-ready wallet software.
 
 ## What this project contains
@@ -29,16 +22,22 @@ In that execution mode:
 
 ```text
 address(this) == delegated EOA
-storage      == delegated EOA storage
-code         == implementation code
+storage       == delegated EOA storage
+code          == implementation code
 ```
 
-The delegated account stores signer **addresses**, not private keys. The off-chain wallet is responsible for deriving and managing the corresponding ECDSA keys.
+The delegated account stores signer **addresses**, not public keys. The off-chain wallet is responsible for deriving and managing the corresponding ECDSA keys.
 
 A normal operation is signed by the current authorized signer and includes the next authorized signer:
 
 ```text
-auth[i] signs Operation(..., nextAuthorizedSigner = auth[i+1], ...)
+auth[i] signs Operation(
+  target, 
+  value,
+  data,
+  nextAuthorizedSigner = auth[i+1],
+  deadline
+  )
 ```
 
 After a valid signature is verified, the account attempts to rotate away from `auth[i]` before executing the external call. If the external target fails, the account should not revert the whole transaction, because that would roll back the key rotation while the signature from `auth[i]` has already been exposed.
@@ -51,7 +50,7 @@ Recovery also uses one-time ECDSA keys:
 recovery[j] signs RecoveryOperation(
   nextAuthorizedSigner = auth[k],
   nextRecoverySigner   = recovery[j+1],
-  ...
+  deadline
 )
 ```
 
@@ -182,9 +181,7 @@ Not implemented or not production-ready:
 - browser extension, mobile app, or UI;
 - multi-device coordination;
 - production recovery UX;
-- event indexing or persistent transaction history;
-- ERC-4337 integration, paymasters, batching, or advanced permissions;
-- protection against compromise of the underlying EIP-7702 authority key.
+- event indexing or persistent transaction history.
 
 ## Security notes
 

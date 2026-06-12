@@ -45,10 +45,10 @@ src/cli/
   execute-target-revert.ts       Executes an operation whose target reverts.
   execute-expired-set-number.ts  Executes an expired operation with valid rotation.
   execute-invalid-next-auth.ts   Dev-only invalid next signer pause test.
-  recover.ts                    Performs signed recovery from PAUSED state.
-  derive-demo.ts                Prints derived signer addresses.
-  sign-demo.ts                  Demonstrates EIP-712 signing and signer recovery.
-  env.ts                        Environment-variable helpers.
+  recover.ts                     Performs signed recovery from PAUSED state.
+  derive-demo.ts                 Prints derived signer addresses.
+  sign-demo.ts                   Demonstrates EIP-712 signing and signer recovery.
+  env.ts                         Environment-variable helpers.
 
 src/crypto/
   derivation.ts          Deterministic auth/recovery signer derivation.
