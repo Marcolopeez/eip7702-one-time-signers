@@ -2,19 +2,20 @@
 
 The `wallet/` package contains the TypeScript wallet logic for the `EphemeralKeyAccount` experiment.
 
-It is not a full wallet application. It is a developer-oriented module that derives one-time signers, signs EIP-712 account operations, persists local key-consumption state, sends local transactions through a relayer, and reconciles state with the delegated account contract.
+It is not a full wallet application. It is a developer-oriented module for deriving one-time signers, signing EIP-712 account operations, tracking locally burned keys, submitting transactions through a relayer, and reconciling wallet state with delegated-account storage.
 
 ## Responsibilities
 
-The wallet currently handles:
+The wallet currently implements:
 
-1. deterministic derivation of `auth` and `recovery` signer streams;
-2. EIP-712 hashing and signing for `Operation` and `RecoveryOperation`;
-3. local state transitions and burned-key tracking;
-4. selection of unused next auth/recovery signers;
-5. RPC reads and writes through viem;
-6. reconciliation of local state against on-chain storage;
-7. local CLI flows for initialization, execution, pause testing, and recovery.
+1. deterministic `auth` and `recovery` signer derivation;
+2. EIP-712 hashing/signing for `Operation` and `RecoveryOperation`;
+3. local state transitions for one-time-key consumption;
+4. lookahead-based selection of unused next signers;
+5. viem-based reads and writes;
+6. relayer submission for signed operations and signed recovery;
+7. local JSON state persistence;
+8. CLI flows for local initialization, execution, pause testing, sync, and recovery.
 
 The core wallet rule is:
 
@@ -30,7 +31,7 @@ This applies before broadcasting, before receipt confirmation, and regardless of
 src/account/
   abi.ts                 ABI for EphemeralKeyAccount.
   client.ts              viem-based RPC client for reads, writes, receipts, and sync.
-  eip712.ts              EIP-712 domain, typed-data definitions, signing, hashing, recovery.
+  eip712.ts              EIP-712 domain, typed data definitions, signing, hashing, recovery.
   executionTargetAbi.ts  ABI for the local ExecutionTarget test contract.
   keySelection.ts        Lookahead-based selection of unused auth/recovery signers.
   state.ts               Local wallet state machine and burned-key transitions.
@@ -52,7 +53,7 @@ src/cli/
 
 src/crypto/
   derivation.ts          Deterministic auth/recovery signer derivation.
-  hex.ts                 Small hex and byte helpers.
+  hex.ts                 Hex and byte validation helpers.
 
 src/storage/
   localStore.ts          JSON-backed local state persistence.
@@ -69,13 +70,13 @@ test/
 `src/crypto/derivation.ts` derives two independent one-time ECDSA signer streams:
 
 ```text
-auth[i]      normal operation signer
-recovery[i]  recovery operation signer
+auth[i]      signer for normal account operations
+recovery[i]  signer for recovery operations
 ```
 
 The derivation context includes:
 
-- mnemonic;
+- BIP-39 mnemonic;
 - optional BIP-39 passphrase;
 - `walletId`;
 - `chainId`;
@@ -83,9 +84,42 @@ The derivation context includes:
 - implementation address;
 - logical account index.
 
-The `auth` stream is bound to `walletId`, which represents a specific wallet installation. The `recovery` stream is not bound to `walletId`, so it can be reconstructed from the mnemonic and passphrase if the installation state is lost.
+The `auth` stream is bound to `walletId`, which represents a specific wallet installation. The `recovery` stream is not bound to `walletId`, so it can be reconstructed from mnemonic + passphrase if the installation state is lost.
+
+Implemented path format:
+
+```text
+auth[i]      m / 7702' / 60' / accountIndex' / 0' / i'
+recovery[i]  m / 7702' / 60' / accountIndex' / 1' / i'
+```
+
+Before BIP-32 derivation, the module applies HKDF-SHA256 to separate:
+
+- wallet-bound root;
+- recovery root;
+- account context;
+- auth/recovery stream master seeds.
+
+The account context binds derived keys to:
+
+```text
+chainId | delegatedAccount | implementationAddress | accountIndex
+```
+
+This avoids accidentally reusing the same one-time signer across chains, delegated accounts, or implementations.
 
 All signer paths are hardened-only. The wallet does not expose xpub/watch-only derivation because every leaf is a signing key that may become exposed after one signature.
+
+### Design implications of `walletId`
+
+`walletId` is expected to be a 32-byte per-install identifier.
+
+- Same mnemonic + same `walletId` derives the same auth stream.
+- Same mnemonic + different `walletId` derives a different auth stream.
+- Losing `walletId` means the active auth stream may not be reconstructible.
+- Recovery does not depend on `walletId`, so mnemonic + passphrase can recover into a new wallet stream.
+
+Multi-device active signing is out of scope. Two devices sharing the same mnemonic and `walletId` could sign with the same current auth key unless an additional coordination mechanism exists.
 
 ## EIP-712 signing
 
@@ -115,13 +149,24 @@ RecoveryOperation(
 )
 ```
 
-The EIP-712 verifying contract is the delegated EOA, not the implementation address. This matches EIP-7702 execution, where `address(this)` in delegated code is the EOA.
+The EIP-712 domain is:
+
+```text
+name              EphemeralKeyAccount
+version           1
+chainId           state.chainId
+verifyingContract state.delegatedAccount
+```
+
+The verifying contract is the delegated EOA, not the implementation address. This matches the EIP-7702 execution model where contract code runs with `address(this)` equal to the EOA.
+
+The signing helpers are intentionally low-level. They do not burn keys by themselves. Production flows must call them through `state.ts` so key consumption is persisted immediately after signing.
 
 ## Local state machine
 
-`src/account/state.ts` stores the wallet-side state for one delegated account.
+`src/account/state.ts` stores wallet-side state for one delegated account.
 
-Main statuses:
+Statuses:
 
 ```text
 READY              normal operation signing is allowed
@@ -130,17 +175,106 @@ PAUSED             normal signing is blocked; recovery is required
 PENDING_RECOVERY   a recovery signature was produced and must be reconciled
 ```
 
+A pending operation records:
+
+```text
+consumedAuthIndex
+consumedAuthSigner
+nextAuthIndex
+nextAuthorizedSigner
+operationDigest
+signature
+signedAtUnix
+txHash?
+```
+
+A pending recovery records:
+
+```text
+consumedRecoveryIndex
+consumedRecoverySigner
+nextAuthIndex
+nextAuthorizedSigner
+nextRecoveryIndex
+nextRecoverySigner
+recoveryDigest
+signature
+signedAtUnix
+txHash?
+```
+
 When an operation is signed, the current auth index is added to `burnedAuthIndices`. When a recovery operation is signed, the current recovery index is added to `burnedRecoveryIndices`.
 
-This is not just UI state. It is part of the security model: a locally burned key must not be used again even if the transaction is dropped, expires, returns `(false, result)`, or the target reverts.
+This is not UI state. It is part of the security model: a burned key must not be used again even if the transaction is dropped, expires, returns `(false, result)`, or the target reverts.
+
+## Operation flow
+
+The normal CLI operation flow is implemented in `execute-set-number.ts`, `execute-target-revert.ts`, and `execute-expired-set-number.ts`:
+
+1. Load local state.
+2. Sync with delegated-account storage before signing.
+3. Require `status == READY`.
+4. Derive the current auth signer from `currentAuthIndex`.
+5. Check that the derived address matches `currentAuthorizedSigner` in local state.
+6. Select a fresh `nextAuthorizedSigner` with `findNextUnusedAuthSigner()`.
+7. Build the `Operation`.
+8. Sign EIP-712 typed data with the current auth private key.
+9. Persist `PENDING_OPERATION` and burn the current auth index before broadcasting.
+10. Relayer sends `executeSignedAndRotate(operation, signature)`.
+11. Attach `txHash` after broadcast.
+12. Wait for receipt.
+13. Sync from contract storage.
+
+Important: receipt `success` is not interpreted as account-level success. The contract may return `(false, result)` while the Ethereum transaction succeeds and signer rotation persists.
+
+## Failure semantics from the wallet perspective
+
+### Target revert
+
+If the target reverts, the contract returns `(success = false, result = targetRevertData)`. The auth signer is still consumed and the account should advance to the next auth signer if rotation succeeded.
+
+### Expired operation
+
+An expired operation can still rotate if the signature is valid and `nextAuthorizedSigner` is valid. The target is not called. The wallet must still treat the consumed auth key as burned.
+
+### Invalid next auth signer
+
+A valid signature with an invalid `nextAuthorizedSigner` causes the contract to enter `PAUSED`. The consumed auth key stays burned locally. Recovery is required.
+
+The production path `beginOperationSigning()` rejects zero or repeated next signers locally. `beginUnsafeOperationSigningForPauseTest()` exists only to exercise the contract's pause path in local tests and requires a `DEV_ONLY` reason.
+
+### Dropped or pending transaction
+
+If a transaction is not mined, the local state remains `PENDING_OPERATION` or `PENDING_RECOVERY`. The wallet must not sign a second operation with the same key. A real wallet needs explicit UX for rebroadcasting, replacement, cancellation-by-recovery, or waiting.
+
+## Recovery flow
+
+The CLI recovery flow is implemented in `recover.ts`.
+
+1. Load local state.
+2. Sync with delegated-account storage before signing.
+3. Require `status == PAUSED`.
+4. Derive the current recovery signer from `currentRecoveryIndex`.
+5. Check that it matches local state and is active on-chain.
+6. Select a fresh auth signer, skipping burned and consumed/reserved signers.
+7. Select a fresh recovery signer, requiring inactive and not consumed/reserved.
+8. Build `RecoveryOperation(nextAuthorizedSigner, nextRecoverySigner, deadline)`.
+9. Sign EIP-712 typed data with the current recovery key.
+10. Persist `PENDING_RECOVERY` and burn the current recovery index before broadcasting.
+11. Relayer sends `signedRecovery(recoveryOperation, signature)`.
+12. Sync from contract storage.
+
+A successful sync moves the wallet back to `READY` and advances both streams.
+
+The contract also supports direct recovery through `rotateAuthorizedSignerThroughRecovery(...)`, but the current wallet CLI uses signed recovery via relayer.
 
 ## Synchronization
 
-`src/account/sync.ts` contains pure reconciliation logic. It does not talk to RPC.
+`src/account/sync.ts` contains pure reconciliation logic. It does not perform RPC calls.
 
 `src/account/client.ts` reads an on-chain snapshot through viem and passes it to `reconcileLocalState(...)`.
 
-The wallet reconciles by reading contract storage such as:
+The wallet reads:
 
 ```text
 isInitialized()
@@ -150,20 +284,31 @@ isConsumedOrReservedSigner(address)
 isActiveRecoverySigner(address)
 ```
 
-This is intentional. The wallet must not assume that transaction receipt status alone describes the account state. In this project, a transaction can succeed at the Ethereum receipt level while the account function returns `(success = false, result)` after still performing security-relevant state transitions.
+For pending recovery, extra reads distinguish:
+
+- recovery tx not mined yet;
+- recovery signer consumed but account still paused;
+- full recovery success;
+- critical partial recovery where auth advanced but no fresh recovery signer became active.
+
+The sync layer deliberately throws `SyncInvariantError` if local and on-chain state cannot be reconciled safely. Signing should stop rather than guessing a new cursor.
 
 ## Key selection
 
-`src/account/keySelection.ts` searches forward through derived keys and checks both local and on-chain status.
+`src/account/keySelection.ts` searches forward from a start index using a bounded lookahead window.
 
-For auth keys, the wallet skips:
+For auth signers, the wallet rejects candidates that are:
 
-- locally burned indices;
-- signers already consumed or reserved on-chain.
+- locally burned;
+- consumed or reserved on-chain.
 
-For recovery keys, the wallet also requires the candidate recovery signer to be inactive on-chain.
+For recovery signers, the wallet rejects candidates that are:
 
-The default lookahead window is intentionally finite. If no safe candidate is found, the wallet stops instead of guessing.
+- locally burned;
+- consumed or reserved on-chain;
+- already active on-chain.
+
+The default lookahead is finite. If no safe candidate is found, the wallet fails closed.
 
 ## Local storage
 
@@ -173,15 +318,13 @@ The default lookahead window is intentionally finite. If no safe candidate is fo
 wallet/.local/state.json
 ```
 
-This is development storage only. It is not encrypted and is not suitable as production key or state storage.
+This is development storage only. It is not encrypted and is not suitable for production key or state storage.
 
-The store writes through a temporary file and rename step to reduce the chance of leaving a partially written state file.
+The store writes through a temporary file followed by rename to reduce partial-write risk during local development.
 
-## CLI flows
+## CLI commands
 
-The CLI scripts are local developer entrypoints.
-
-Typical local setup:
+Setup and state:
 
 ```bash
 pnpm prepare:init
@@ -206,11 +349,7 @@ pnpm derive:demo
 pnpm sign:demo
 ```
 
-The scripts expect environment variables such as `MNEMONIC`, `WALLET_ID`, `RPC_URL`, `RELAYER_PRIVATE_KEY`, and, depending on the script, deployed contract addresses. See the root README and `scripts/README.md` for the full local E2E flow.
-
-## Common commands
-
-From `wallet/`:
+Common development checks:
 
 ```bash
 pnpm install
@@ -218,17 +357,33 @@ pnpm typecheck
 pnpm test
 ```
 
-The automated root E2E script also runs these commands before executing the full local flow.
+The scripts expect environment variables such as `MNEMONIC`, `WALLET_ID`, `RPC_URL`, `RELAYER_PRIVATE_KEY`, and deployed contract addresses. The root E2E script wires these values automatically for local Anvil tests.
+
+## Wallet invariants
+
+A correct wallet implementation should preserve at least these invariants:
+
+1. Never sign unless local state has been synced recently.
+2. Never sign while status is `PENDING_OPERATION` or `PENDING_RECOVERY`.
+3. Never use a burned auth or recovery index again.
+4. Never use a zero address as next auth or recovery signer.
+5. Never install a locally burned signer as `nextAuthorizedSigner`.
+6. Never install an on-chain consumed/reserved signer as `nextAuthorizedSigner`.
+7. Never register an active, consumed, reserved, or burned signer as `nextRecoverySigner`.
+8. Persist pending state before broadcasting the relayer transaction.
+9. Treat expired operations as potentially key-consuming.
+10. Stop signing on `SyncInvariantError`.
 
 ## Current limitations
 
-The wallet module currently assumes a local/developer environment and has several important limitations:
+The wallet module currently assumes a local/developer environment and has important limitations:
 
 - no UI;
 - no secure enclave or hardware wallet integration;
 - no encrypted local state;
+- raw private keys are returned in memory by the derivation layer;
 - no multi-device coordination;
-- no production-grade recovery UX;
+- no production transaction replacement or dropped-transaction UX;
 - no event indexing or full transaction history;
 - no ERC-4337 bundler or paymaster integration;
 - JSON state is used for development convenience only.
