@@ -388,3 +388,34 @@ The wallet module currently assumes a local/developer environment and has import
 - JSON state is used for development convenience only.
 
 The module is useful for validating the account model and local execution flows, not for managing real assets.
+
+## Internal SDK boundary
+
+The wallet now exposes a small core SDK in `src/core/`.
+
+The browser extension should call this layer instead of reimplementing signing
+or state transitions in UI code:
+
+```ts
+const wallet = new EphemeralWallet({
+  mnemonic,
+  passphrase,
+  store,
+  client,
+});
+
+await wallet.sync();
+await wallet.execute({ target, value, data });
+await wallet.recover();
+```
+
+The SDK enforces the critical sequence:
+
+```text
+sync -> derive -> sign -> burn locally -> persist -> broadcast -> wait -> sync
+```
+
+That means a key is marked as burned in persistent state immediately after a
+signature is produced and before the transaction is broadcast. Popup/UI code in
+the future browser wallet must not call `signOperation()` or
+`signRecoveryOperation()` directly.
