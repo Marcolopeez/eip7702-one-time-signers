@@ -65,6 +65,47 @@ test/
   sync.test.ts
 ```
 
+
+## Browser extension prototype
+
+The repository now includes a minimal WXT + React browser extension prototype. WXT is used because it provides an opinionated WebExtension build pipeline and a Manifest V3-compatible background service worker model. The extension is currently a local-development UI over the internal `EphemeralWallet` SDK, not a generic injected wallet.
+
+New extension files live in:
+
+```text
+wxt.config.ts
+entrypoints/background.ts
+entrypoints/popup/
+src/extension/
+```
+
+The extension supports:
+
+1. importing local development settings;
+2. importing an existing `LocalWalletState` JSON;
+3. displaying delegated-account status;
+4. calling `sync()`;
+5. executing `ExecutionTarget.setNumber(uint256)` via `wallet.execute()`;
+6. running `wallet.recover()` when the account is paused.
+
+The popup does not derive private keys or call low-level signing helpers. It sends messages to the background script, and the background script calls the SDK. This keeps the security-critical sequence centralized:
+
+```text
+sync -> derive -> sign -> burn locally -> persist -> broadcast -> sync
+```
+
+Development commands:
+
+```bash
+pnpm extension:dev
+pnpm extension:build
+pnpm extension:zip
+```
+
+The extension currently stores prototype configuration in extension local storage. Use only Anvil/test mnemonics and test private keys. Production hardening still requires encrypted secret storage, an unlock lifecycle, runtime message validation, user confirmations, and a full review of the extension privilege boundary.
+
+See `../docs/browser-wallet.md` for the browser-wallet design notes and usage flow.
+
 ## Key derivation
 
 `src/crypto/derivation.ts` derives two independent one-time ECDSA signer streams:

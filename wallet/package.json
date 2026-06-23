@@ -6,7 +6,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:extension": "wxt prepare && tsc --noEmit -p tsconfig.extension.json",
+    "typecheck:all": "pnpm typecheck && pnpm typecheck:extension",
     "derive:demo": "tsx src/cli/derive-demo.ts",
     "sign:demo": "tsx src/cli/sign-demo.ts",
     "prepare:init": "tsx src/cli/prepare-local-init.ts",
@@ -16,18 +18,27 @@
     "execute:target-revert": "tsx src/cli/execute-target-revert.ts",
     "execute:expired-set-number": "tsx src/cli/execute-expired-set-number.ts",
     "execute:invalid-next-auth": "tsx src/cli/execute-invalid-next-auth.ts",
-    "recover": "tsx src/cli/recover.ts"
+    "recover": "tsx src/cli/recover.ts",
+    "extension:dev": "wxt",
+    "extension:build": "wxt build",
+    "extension:zip": "wxt zip"
   },
   "dependencies": {
     "@noble/hashes": "latest",
     "@scure/bip32": "latest",
     "@scure/bip39": "latest",
-    "viem": "latest"
+    "viem": "latest",
+    "react": "latest",
+    "react-dom": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
     "tsx": "latest",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@wxt-dev/module-react": "latest",
+    "wxt": "latest"
   }
 }
