@@ -1,0 +1,1 @@
+import{a as e,i as t,n,r,t as i}from"./style-pvEjm1UT.js";var a=e(t(),1),o=r(),s=n(),c=document.getElementById(`root`);if(!c)throw Error(`Dashboard root element not found`);(0,o.createRoot)(c).render((0,s.jsx)(a.StrictMode,{children:(0,s.jsx)(i,{mode:`dashboard`})}));

@@ -7,7 +7,13 @@
 import type { Hex } from "viem";
 
 export function bytesToHexPrefixed(bytes: Uint8Array): Hex {
-  return `0x${Buffer.from(bytes).toString("hex")}`;
+  let hex = "0x";
+
+  for (const byte of bytes) {
+    hex += byte.toString(16).padStart(2, "0");
+  }
+
+  return hex as Hex;
 }
 
 export function hexToBytes(hex: Hex): Uint8Array {
@@ -17,7 +23,18 @@ export function hexToBytes(hex: Hex): Uint8Array {
     throw new Error("Invalid hex string length");
   }
 
-  return Uint8Array.from(Buffer.from(clean, "hex"));
+  if (!/^[0-9a-fA-F]*$/.test(clean)) {
+    throw new Error("Invalid hex string");
+  }
+
+  const bytes = new Uint8Array(clean.length / 2);
+
+  for (let i = 0; i < bytes.length; i++) {
+    const start = i * 2;
+    bytes[i] = Number.parseInt(clean.slice(start, start + 2), 16);
+  }
+
+  return bytes;
 }
 
 /**
@@ -31,5 +48,9 @@ export function assertHex32(value: Hex, label: string): void {
 
   if (clean.length !== 64) {
     throw new Error(`${label} must be 32 bytes`);
+  }
+
+  if (!/^[0-9a-fA-F]*$/.test(clean)) {
+    throw new Error(`${label} must be valid hex`);
   }
 }

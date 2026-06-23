@@ -3,7 +3,7 @@ import { browser } from "wxt/browser";
 import type { ExtensionRequest, ExtensionResponse } from "../src/extension/types.js";
 import {
   clearExtensionWalletStorage,
-  saveExtensionSettings,
+  mergeAndSaveExtensionSettings,
   saveExtensionStateJson,
 } from "../src/extension/storage.js";
 import {
@@ -23,7 +23,7 @@ async function handleMessage(message: ExtensionRequest): Promise<ExtensionRespon
       return { ok: true, data: await getExtensionSnapshot() };
 
     case "SAVE_SETTINGS": {
-      await saveExtensionSettings(message.settings);
+      await mergeAndSaveExtensionSettings(message.settings);
 
       if (message.stateJson?.trim()) {
         await saveExtensionStateJson(message.stateJson);

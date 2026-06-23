@@ -10,6 +10,31 @@ export type ExtensionWalletSettings = {
   executionTargetAddress?: Address;
 };
 
+export type ExtensionWalletSettingsInput = {
+  /**
+   * Optional after first save.
+   *
+   * If omitted, the background keeps the previously stored mnemonic.
+   */
+  mnemonic?: string;
+
+  /**
+   * Optional. If omitted, the background keeps the previous passphrase.
+   */
+  passphrase?: string;
+
+  rpcUrl: string;
+
+  /**
+   * Optional after first save.
+   *
+   * If omitted, the background keeps the previously stored relayer key.
+   */
+  relayerPrivateKey?: Hex;
+
+  executionTargetAddress?: Address;
+};
+
 export type ExtensionSnapshot = {
   hasSettings: boolean;
   hasState: boolean;
@@ -37,7 +62,7 @@ export type ExtensionRequest =
   | { type: "GET_SNAPSHOT" }
   | {
       type: "SAVE_SETTINGS";
-      settings: ExtensionWalletSettings;
+      settings: ExtensionWalletSettingsInput;
       stateJson?: string;
     }
   | { type: "SAVE_STATE_JSON"; stateJson: string }

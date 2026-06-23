@@ -104,6 +104,8 @@ pnpm extension:zip
 
 The extension currently stores prototype configuration in extension local storage. Use only Anvil/test mnemonics and test private keys. Production hardening still requires encrypted secret storage, an unlock lifecycle, runtime message validation, user confirmations, and a full review of the extension privilege boundary.
 
+The popup now has separate settings and state import/export sections. After `Sync`, `Execute setNumber`, or `Recover`, the current state can be copied or downloaded from the popup.
+
 See `../docs/browser-wallet.md` for the browser-wallet design notes and usage flow.
 
 ## Key derivation
