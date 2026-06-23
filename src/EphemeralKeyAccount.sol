@@ -30,7 +30,7 @@ import {MessageHashUtils} from "lib/openzeppelin-contracts/contracts/utils/crypt
 ///      Important limitation:
 ///      This contract cannot protect against compromise of the EIP-7702 authority key that controls the
 ///      account's delegation at protocol level. If that key can be recovered from a set-code authorization,
-///      an attacker may be able to replace or clear the delegation outside this contract's control. 
+///      an attacker may be able to replace or clear the delegation outside this contract's control.
 ///      Thats why we need ECDSA-key deactivation after EIP-7702 delegation.
 contract EphemeralKeyAccount {
     using ECDSA for bytes32;
@@ -250,7 +250,10 @@ contract EphemeralKeyAccount {
     ///      can satisfy the `msg.sender == address(this)` check.
     /// @param firstAuthorizedSigner Signer address of the first ephemeral key allowed to authorize this account.
     /// @param initialRecoverySigners Signer addresses for one-time recovery keys that can restore a fresh key.
-    function initialize(address firstAuthorizedSigner, address[] calldata initialRecoverySigners) external onlyDelegatedAccount {
+    function initialize(address firstAuthorizedSigner, address[] calldata initialRecoverySigners) 
+        external 
+        onlyDelegatedAccount 
+    {
         if (isInitialized) revert AlreadyInitialized();
         if (msg.sender != address(this)) revert UnauthorizedInitializer(msg.sender, address(this));
         if (firstAuthorizedSigner == address(0)) revert InvalidNextAuthorizedSigner();
@@ -284,7 +287,7 @@ contract EphemeralKeyAccount {
     ///      signature, so the account is paused instead of reverting.
     /// @param nextAuthorizedSigner Signer address for the key that becomes valid after this call.
     /// @dev Kept as a direct key-rotation path so wallets can rotate without executing a target call.
-    function rotateAuthorizedSigner(address nextAuthorizedSigner) 
+    function rotateAuthorizedSigner(address nextAuthorizedSigner)
         external
         onlyDelegatedAccount
         onlyInitialized
