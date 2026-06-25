@@ -1,4 +1,4 @@
-# Ephemeral Key Account
+# EIP-7702 One-Time Signer Account
 
 Experimental EIP-7702 account prototype using one-time ECDSA authorization keys and one-time ECDSA recovery keys.
 
@@ -6,7 +6,7 @@ This repository is research-oriented. It is **not production-ready wallet softwa
 
 ## Overview
 
-The project explores a minimal smart-account model where an EOA delegates execution to `EphemeralKeyAccount.sol` through EIP-7702. When the implementation executes as delegated code:
+The project explores a minimal smart-account model where an EOA delegates execution to `OneTimeSignerAccount.sol` through EIP-7702. When the implementation executes as delegated code:
 
 ```text
 address(this) == delegated EOA
@@ -36,7 +36,7 @@ After a valid signature is verified, the contract rotates to `auth[i+1]` before 
 
 ```text
 src/
-  EphemeralKeyAccount.sol           EIP-7702 delegated account implementation.
+  OneTimeSignerAccount.sol           EIP-7702 delegated account implementation.
 
 script/
   DeployImplementation.s.sol        Deploys the reusable implementation.
@@ -48,7 +48,7 @@ scripts/
   run-local-e2e.sh                  Full Anvil/Foundry/wallet E2E flow.
 
 test/
-  EphemeralKeyAccount7702Test.t.sol Foundry tests for delegated execution and recovery.
+  OneTimeSignerAccountTest.t.sol Foundry tests for delegated execution and recovery.
   mocks/ExecutionTarget.sol         Target contract used to test calls and reverts.
 
 wallet/
@@ -81,7 +81,7 @@ relayer transaction
   pays gas but does not authorize the operation
         |
         v
-delegated EOA using EphemeralKeyAccount code
+delegated EOA using OneTimeSignerAccount code
   verifies EIP-712 signatures against address(this)
   rotates signers before external execution
   returns failure data instead of reverting after valid signatures

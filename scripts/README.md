@@ -50,7 +50,7 @@ The script performs this sequence:
 3. runs `forge build`;
 4. installs wallet dependencies;
 5. runs wallet typecheck and unit tests;
-6. deploys `EphemeralKeyAccount` implementation;
+6. deploys `OneTimeSignerAccount` implementation;
 7. derives `auth[0]` and `recovery[0]` through `wallet/src/cli/prepare-local-init.ts`;
 8. funds the delegated account and relayer;
 9. attaches EIP-7702 delegation and initializes delegated-account storage;

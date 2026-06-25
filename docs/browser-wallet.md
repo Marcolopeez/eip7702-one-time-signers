@@ -2,7 +2,7 @@
 
 This document describes the first browser-wallet milestone for the EIP-7702 rotating-key account.
 
-The extension is intentionally minimal. It is not a generic injected wallet and it does not expose `window.ethereum`. It is a local-development UI over the internal `EphemeralWallet` SDK.
+The extension is intentionally minimal. It is not a generic injected wallet and it does not expose `window.ethereum`. It is a local-development UI over the internal `OneTimeSignerWallet` SDK.
 
 ## Security boundary
 
@@ -20,7 +20,7 @@ wallet.execute({ target, value, data });
 wallet.recover();
 ```
 
-The security-sensitive sequence remains centralized in `src/core/EphemeralWallet.ts`:
+The security-sensitive sequence remains centralized in `src/core/OneTimeSignerWallet.ts`:
 
 ```text
 sync -> derive -> sign -> burn locally -> persist -> broadcast -> sync
@@ -86,6 +86,26 @@ export CHROME_PATH="$(which google-chrome-stable)"
 export CHROME_PATH="$(which brave-browser)"
 export CHROME_PATH="$(which brave)"
 ```
+
+## Import/export UX
+
+The popup separates wallet settings from local wallet state.
+
+Settings include:
+
+- mnemonic;
+- optional passphrase;
+- RPC URL;
+- relayer private key;
+- optional `ExecutionTarget` address.
+
+The local wallet state can be imported separately by pasting the contents of `wallet/.local/state.json`.
+
+After every successful wallet action, the popup refreshes the current state from extension storage. The user can copy or download the updated state.
+
+For development convenience, once mnemonic and relayer key have been stored, the settings form can be saved again leaving those fields empty. The background keeps the previously stored values.
+
+This is still a development-only flow. A production wallet must replace this with encrypted secret storage and a proper unlock lifecycle.
 
 ## Typical flow
 

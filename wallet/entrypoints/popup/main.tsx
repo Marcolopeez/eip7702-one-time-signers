@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.js";
-import "../../src/extension/ui/style.css";
+import "../../src/apps/extension/ui/style.css";
 
 const root = document.getElementById("root");
 

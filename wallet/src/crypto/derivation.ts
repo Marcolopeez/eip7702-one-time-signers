@@ -1,5 +1,5 @@
 /**
- * Deterministic signer derivation for the ephemeral-key wallet.
+ * Deterministic signer derivation for the one-time signer wallet.
  *
  * The wallet manages independent one-time ECDSA signer streams. The auth stream
  * controls normal execution; the recovery stream restores the account when the
@@ -145,7 +145,7 @@ function buildAccountContext(context: DerivationContext): Uint8Array {
    * across different accounts or chains.
    */
   const encoded = [
-    "EphemeralKeyAccount:v1",
+    "OneTimeSignerAccount:v1",
     `chainId:${context.chainId.toString()}`,
     `delegatedAccount:${delegatedAccount}`,
     `implementationAddress:${implementationAddress}`,
@@ -176,7 +176,7 @@ function deriveWalletRoot(rootSeed: Uint8Array, walletId: Hex): Uint8Array {
     sha256,
     rootSeed,
     hexToBytes(walletId),
-    utf8ToBytes("EphemeralKeyAccount:v1:wallet-root"),
+    utf8ToBytes("OneTimeSignerAccount:v1:wallet-root"),
     64,
   );
 }
@@ -190,8 +190,8 @@ function deriveRecoveryRoot(rootSeed: Uint8Array): Uint8Array {
   return hkdf(
     sha256,
     rootSeed,
-    utf8ToBytes("EphemeralKeyAccount:v1:recovery-root:salt"),
-    utf8ToBytes("EphemeralKeyAccount:v1:recovery-root"),
+    utf8ToBytes("OneTimeSignerAccount:v1:recovery-root:salt"),
+    utf8ToBytes("OneTimeSignerAccount:v1:recovery-root"),
     64,
   );
 }
@@ -215,7 +215,7 @@ function deriveStreamMasterSeed(context: DerivationContext, stream: SignerStream
     sha256,
     streamRoot,
     accountContext,
-    utf8ToBytes(`EphemeralKeyAccount:v1:${stream}:bip32-master-seed`),
+    utf8ToBytes(`OneTimeSignerAccount:v1:${stream}:bip32-master-seed`),
     64,
   );
 }

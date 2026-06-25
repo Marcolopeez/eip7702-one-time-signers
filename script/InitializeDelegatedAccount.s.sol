@@ -9,7 +9,7 @@
 pragma solidity ^0.8.30;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {EphemeralKeyAccount} from "../src/EphemeralKeyAccount.sol";
+import {OneTimeSignerAccount} from "../src/OneTimeSignerAccount.sol";
 
 contract InitializeDelegatedAccount is Script {
     function run() external {
@@ -27,6 +27,9 @@ contract InitializeDelegatedAccount is Script {
         console2.log("Implementation:", implementation);
         console2.log("First authorized signer:", firstAuthorizedSigner);
         console2.log("First recovery signer:", firstRecoverySigner);
+        
+        // Fund the account that sends the transaction
+        vm.deal(authority, 1 ether);
 
         vm.startBroadcast(authorityPrivateKey);
 
@@ -34,7 +37,7 @@ contract InitializeDelegatedAccount is Script {
         vm.signAndAttachDelegation(implementation, authorityPrivateKey);
 
         // initialize() writes to the delegated EOA storage, not to the implementation.
-        EphemeralKeyAccount(payable(authority)).initialize(
+        OneTimeSignerAccount(payable(authority)).initialize(
             firstAuthorizedSigner,
             initialRecoverySigners
         );
@@ -42,10 +45,10 @@ contract InitializeDelegatedAccount is Script {
         vm.stopBroadcast();
 
         // Sanity checks catch setup mistakes before the wallet creates local state.
-        bool initialized = EphemeralKeyAccount(payable(authority)).isInitialized();
-        bool paused = EphemeralKeyAccount(payable(authority)).isPaused();
-        address currentSigner = EphemeralKeyAccount(payable(authority)).currentAuthorizedSigner();
-        bool recoveryActive = EphemeralKeyAccount(payable(authority)).isActiveRecoverySigner(firstRecoverySigner);
+        bool initialized = OneTimeSignerAccount(payable(authority)).isInitialized();
+        bool paused = OneTimeSignerAccount(payable(authority)).isPaused();
+        address currentSigner = OneTimeSignerAccount(payable(authority)).currentAuthorizedSigner();
+        bool recoveryActive = OneTimeSignerAccount(payable(authority)).isActiveRecoverySigner(firstRecoverySigner);
 
         console2.log("Initialized:", initialized);
         console2.log("Paused:", paused);

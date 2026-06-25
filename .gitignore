@@ -14,6 +14,8 @@ Thumbs.db
 # Local wallet state and generated local init files
 .local/
 wallet/.local/
+wallet/.output/
+wallet/.wxt/
 
 # Local E2E logs and temporary output
 .e2e/

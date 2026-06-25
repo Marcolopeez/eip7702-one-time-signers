@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import WalletApp from "../../src/extension/ui/WalletApp.js";
-import "../../src/extension/ui/style.css";
+import WalletApp from "../../src/apps/extension/ui/WalletApp.js";
+import "../../src/apps/extension/ui/style.css";
 
 const root = document.getElementById("root");
 

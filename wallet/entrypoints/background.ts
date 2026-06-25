@@ -1,23 +1,28 @@
 import { defineBackground } from "wxt/utils/define-background";
 import { browser } from "wxt/browser";
-import type { ExtensionRequest, ExtensionResponse } from "../src/extension/types.js";
+import type {
+  ExtensionRequest,
+  ExtensionResponse,
+} from "../src/apps/extension/messaging/types.js";
 import {
   clearExtensionWalletStorage,
   mergeAndSaveExtensionSettings,
   saveExtensionStateJson,
-} from "../src/extension/storage.js";
+} from "../src/apps/extension/config/storage.js";
 import {
   executeExtensionSetNumber,
   getExtensionSnapshot,
   recoverExtensionWallet,
   syncExtensionWallet,
-} from "../src/extension/backgroundWallet.js";
+} from "../src/apps/extension/background/backgroundWallet.js";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function handleMessage(message: ExtensionRequest): Promise<ExtensionResponse> {
+async function handleMessage(
+  message: ExtensionRequest,
+): Promise<ExtensionResponse> {
   switch (message.type) {
     case "GET_SNAPSHOT":
       return { ok: true, data: await getExtensionSnapshot() };
@@ -58,7 +63,12 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleMessage(message as ExtensionRequest)
       .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: errorMessage(error) }));
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: errorMessage(error),
+        }),
+      );
 
     return true;
   });

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Deploys the reusable EphemeralKeyAccount implementation.
+ * Deploys the reusable OneTimeSignerAccount implementation.
  *
  * EIP-7702 delegated EOAs point to this implementation, but each delegated EOA
  * owns its own storage when the code executes through delegation.
@@ -9,7 +9,7 @@
 pragma solidity ^0.8.30;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {EphemeralKeyAccount} from "../src/EphemeralKeyAccount.sol";
+import {OneTimeSignerAccount} from "../src/OneTimeSignerAccount.sol";
 
 contract DeployImplementation is Script {
     function run() external {
@@ -18,7 +18,7 @@ contract DeployImplementation is Script {
         // Only the implementation contract is deployed here; no account is initialized.
         vm.startBroadcast(deployerPrivateKey);
 
-        EphemeralKeyAccount implementation = new EphemeralKeyAccount();
+        OneTimeSignerAccount implementation = new OneTimeSignerAccount();
 
         vm.stopBroadcast();
 

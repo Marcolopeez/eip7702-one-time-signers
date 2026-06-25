@@ -1,6 +1,6 @@
 # Design Notes
 
-This document describes the design decisions behind `EphemeralKeyAccount` and the companion TypeScript wallet.
+This document describes the design decisions behind `OneTimeSignerAccount` and the companion TypeScript wallet.
 
 ## Motivation
 
@@ -42,7 +42,7 @@ Non-goals for this version:
 
 ## EIP-7702 execution model
 
-`EphemeralKeyAccount.sol` is deployed once as an implementation contract. An EOA then delegates to that implementation through EIP-7702.
+`OneTimeSignerAccount.sol` is deployed once as an implementation contract. An EOA then delegates to that implementation through EIP-7702.
 
 During delegated execution:
 

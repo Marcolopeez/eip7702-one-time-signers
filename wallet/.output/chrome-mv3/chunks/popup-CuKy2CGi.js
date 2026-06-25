@@ -1,1 +1,0 @@
-import{a as e,i as t,n,r,t as i}from"./style-pvEjm1UT.js";var a=e(t(),1),o=r(),s=n();function c(){return(0,s.jsx)(i,{mode:`popup`})}var l=document.getElementById(`root`);if(!l)throw Error(`Popup root element not found`);(0,o.createRoot)(l).render((0,s.jsx)(a.StrictMode,{children:(0,s.jsx)(c,{})}));

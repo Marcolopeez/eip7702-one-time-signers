@@ -1,6 +1,6 @@
 # Wallet Module
 
-The `wallet/` package contains the TypeScript wallet logic for the `EphemeralKeyAccount` experiment.
+The `wallet/` package contains the TypeScript wallet logic for the `OneTimeSignerAccount` experiment.
 
 It is not a full wallet application. It is a developer-oriented module for deriving one-time signers, signing EIP-712 account operations, tracking locally burned keys, submitting transactions through a relayer, and reconciling wallet state with delegated-account storage.
 
@@ -29,7 +29,7 @@ This applies before broadcasting, before receipt confirmation, and regardless of
 
 ```text
 src/account/
-  abi.ts                 ABI for EphemeralKeyAccount.
+  abi.ts                 ABI for OneTimeSignerAccount.
   client.ts              viem-based RPC client for reads, writes, receipts, and sync.
   eip712.ts              EIP-712 domain, typed data definitions, signing, hashing, recovery.
   executionTargetAbi.ts  ABI for the local ExecutionTarget test contract.
@@ -68,7 +68,7 @@ test/
 
 ## Browser extension prototype
 
-The repository now includes a minimal WXT + React browser extension prototype. WXT is used because it provides an opinionated WebExtension build pipeline and a Manifest V3-compatible background service worker model. The extension is currently a local-development UI over the internal `EphemeralWallet` SDK, not a generic injected wallet.
+The repository now includes a minimal WXT + React browser extension prototype. WXT is used because it provides an opinionated WebExtension build pipeline and a Manifest V3-compatible background service worker model. The extension is currently a local-development UI over the internal `OneTimeSignerWallet` SDK, not a generic injected wallet.
 
 New extension files live in:
 
@@ -166,7 +166,7 @@ Multi-device active signing is out of scope. Two devices sharing the same mnemon
 
 ## EIP-712 signing
 
-`src/account/eip712.ts` mirrors the typed data expected by `EphemeralKeyAccount.sol`.
+`src/account/eip712.ts` mirrors the typed data expected by `OneTimeSignerAccount.sol`.
 
 Normal operations are signed as:
 
@@ -195,7 +195,7 @@ RecoveryOperation(
 The EIP-712 domain is:
 
 ```text
-name              EphemeralKeyAccount
+name              OneTimeSignerAccount
 version           1
 chainId           state.chainId
 verifyingContract state.delegatedAccount
@@ -440,7 +440,7 @@ The browser extension should call this layer instead of reimplementing signing
 or state transitions in UI code:
 
 ```ts
-const wallet = new EphemeralWallet({
+const wallet = new OneTimeSignerWallet({
   mnemonic,
   passphrase,
   store,
