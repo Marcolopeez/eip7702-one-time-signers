@@ -17,7 +17,7 @@ This project is experimental. Passing tests does not make it production-ready or
 | Extension build           | `pnpm extension:build`       | `wallet/`       | Verifies that the browser extension can be built by WXT                                                                        |
 | Local e2e script          | `./scripts/run-local-e2e.sh` | repository root | Full local flow against a fresh Prague Anvil chain                                                                             |
 
-There is no CI configuration in the attached files. Treat these commands as the local validation checklist for contributors.
+There is no CI configuration in the attached files. Treat these commands as the local validation checklist for this prototype.
 
 ## Solidity tests
 
@@ -92,7 +92,7 @@ Run `forge test` whenever you touch:
 * deployment or initialization scripts that affect delegated account setup;
 * tests or mocks under `test/`.
 
-Also run it before opening a PR that changes any wallet-side protocol assumptions that must match the contract.
+Also run it before relying on wallet-side protocol changes that must remain compatible with the contract.
 
 ## Wallet tests
 
@@ -245,7 +245,7 @@ wallet/src
 wallet/test
 ```
 
-You should also run it before opening a PR with wallet changes, even if the Vitest tests pass.
+Also run it before treating wallet changes as locally validated, even if the Vitest tests pass.
 
 ## Browser extension build checks
 
@@ -346,7 +346,7 @@ Logs are written to:
 .e2e/
 ```
 
-Run `./scripts/run-local-e2e.sh` before merging changes that affect the integrated flow between contracts, scripts, wallet protocol logic, CLI commands, or local storage.
+Run `./scripts/run-local-e2e.sh` before treating changes as safe when they affect the integrated flow between contracts, scripts, wallet protocol logic, CLI commands, or local storage.
 
 Also run it after coordinated changes across Solidity and TypeScript, even if `forge test` and `pnpm test` pass independently.
 
@@ -423,7 +423,7 @@ Then run from the repository root:
 ./scripts/run-local-e2e.sh
 ```
 
-### Before merging security-sensitive changes
+### Before relying on security-sensitive changes
 
 Run the full local checklist:
 

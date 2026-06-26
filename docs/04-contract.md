@@ -4,7 +4,7 @@
 
 `src/OneTimeSignerAccount.sol` is an experimental EIP-7702 delegated-account prototype.
 
-It is not audited, not production-ready, and must not be used with real assets. The contract is designed to study one-time ECDSA signer rotation under the project threat model described in [`docs/threat-model.md`](./threat-model.md).
+It is not audited, not production-ready, and must not be used with real assets. The contract is designed to study one-time ECDSA signer rotation under the project threat model described in [`docs/02-threat-model.md`](./02-threat-model.md).
 
 The implementation assumes that once a valid ECDSA signature from a signer has been observed, the corresponding key must be treated as exposed. The on-chain design therefore tries to ensure that an observed signer cannot control the account again.
 
@@ -531,126 +531,30 @@ State-changing account functions must run through delegation. Direct calls to th
 
 ## Test coverage
 
-The main test file is:
+The main contract test file is:
 
 ```text
 test/OneTimeSignerAccountTest.t.sol
 ```
 
-Run:
+Run from the repository root:
 
 ```bash
 forge test
 ```
 
-The tests map to the contract behavior as follows.
+The Foundry suite covers the contract behaviors that define the on-chain state machine:
 
-### Initialization
+| Area | Covered behavior |
+| ---- | ---------------- |
+| Initialization | Delegated EOA initialization, implementation-storage isolation, direct implementation protection, invalid initial signers, and double initialization. |
+| Direct authorized rotation | Current-signer authorization, signer-chain progression, previous-signer rejection, and pause on invalid next signer. |
+| Signed execution | Relayed operation submission, EIP-712 validation, delegated-EOA `msg.sender`, ETH transfer, rotation before external calls, replay rejection, target revert handling, expiry handling, zero-target handling, and cross-account signature rejection. |
+| Paused mode | Rejection of normal signed execution and direct authorized rotation while paused; ETH reception remains available. |
+| Direct recovery | Active recovery signer use, recovery signer consumption, unpause behavior, replacement recovery signer registration, and reuse rejection. |
+| Signed recovery | EIP-712 recovery validation, recovery signer consumption, expiry behavior, invalid replacement signer behavior, replay rejection, and delegated-account binding. |
 
-Covered behavior:
-
-* delegated EOA receives EIP-7702 delegation code;
-* delegated account storage is initialized;
-* implementation storage remains uninitialized;
-* direct initialization on the implementation reverts;
-* zero first authorized signer is rejected;
-* unauthorized initializer is rejected;
-* double initialization is rejected;
-* zero, duplicate, or already reserved recovery signers are rejected.
-
-Relevant test group:
-
-```text
-test_initialize_*
-```
-
-### Direct authorized rotation
-
-Covered behavior:
-
-* only the current authorized signer can rotate directly;
-* direct rotation installs the next signer;
-* previous signers cannot rotate again;
-* signer chains can continue across multiple rotations;
-* invalid next signers pause the account instead of reverting.
-
-Relevant test group:
-
-```text
-test_rotateAuthorizedSigner_*
-```
-
-### Signed execution
-
-Covered behavior:
-
-* relayers can submit valid signed operations;
-* targets see the delegated EOA as `msg.sender`;
-* ETH can be sent from the delegated account;
-* signer rotation chains continue across signed operations;
-* target reverts do not undo rotation;
-* signatures from consumed signers cannot be replayed;
-* invalid signers revert without pausing;
-* invalid next signers pause the account;
-* expired operations rotate first, then return failure;
-* zero targets rotate first, then return failure;
-* signatures bound to another delegated account are rejected.
-
-Relevant test group:
-
-```text
-test_executeSignedAndRotate_*
-```
-
-### Paused mode
-
-Covered behavior:
-
-* paused accounts reject normal signed execution;
-* paused accounts reject direct authorized rotation;
-* paused accounts can still receive ETH.
-
-Relevant test group:
-
-```text
-test_pausedAccount_*
-```
-
-### Direct recovery
-
-Covered behavior:
-
-* active recovery signers can unpause and rotate the authorized signer;
-* recovery can also rotate while the account is not paused;
-* inactive recovery signers are rejected;
-* recovery signers are consumed even when recovery cannot fully complete;
-* consumed recovery signers cannot be reused;
-* replacement recovery signers can recover again later.
-
-Relevant test group:
-
-```text
-test_rotateAuthorizedSignerThroughRecovery_*
-```
-
-### Signed recovery
-
-Covered behavior:
-
-* relayed signed recovery can unpause and rotate the authorized signer;
-* signed recovery can also rotate while the account is not paused;
-* signatures from non-active recovery signers are rejected;
-* expired recovery operations consume the recovery signer;
-* invalid next authorized signers consume the recovery signer and leave the account paused;
-* invalid replacement recovery signers may still leave the account unpaused with a new authorized signer installed;
-* signed recovery replay fails because the recovery signer was consumed;
-* signatures bound to another delegated account are rejected.
-
-Relevant test group:
-
-```text
-test_signedRecovery_*
-```
+See [`08-testing.md`](./08-testing.md) for the full validation checklist and known testing gaps.
 
 ## Known limitations
 

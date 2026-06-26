@@ -624,74 +624,14 @@ If local state and on-chain state cannot be safely reconciled, the wallet must r
 
 ## CLI and browser extension integration
 
-The CLI and browser extension reuse the same core wallet logic.
+The CLI and browser extension reuse the same SDK and protocol state machine. Their role is to provide operational surfaces, not separate protocol implementations.
 
-### CLI
+| Surface | Storage | Ethereum adapter | Scope | Detail |
+| ------- | ------- | ---------------- | ----- | ------ |
+| CLI | `JsonWalletStateStore` | `OneTimeSignerAccountClient` | Local initialization, sync, execution, failure scenarios, and recovery. | [`06-cli.md`](./06-cli.md) |
+| Browser extension | `BrowserWalletStateStore` plus extension settings storage | `OneTimeSignerAccountClient` | Experimental WXT/React UI for sync, demo execution, recovery, and state import/export. | [`07-browser-wallet.md`](./07-browser-wallet.md) |
 
-CLI commands live under:
-
-```text
-src/apps/cli/
-```
-
-They use:
-
-* `JsonWalletStateStore`;
-* `OneTimeSignerAccountClient`;
-* `OneTimeSignerWallet`;
-* shared environment parsing helpers.
-
-The CLI covers local flows such as:
-
-* preparing initialization data;
-* creating initial local state after on-chain initialization;
-* syncing state;
-* executing `ExecutionTarget.setNumber`;
-* executing target-revert and expired-operation scenarios;
-* recovering a paused account;
-* running dev-only signer derivation and signing demos;
-* testing invalid `nextAuthorizedSigner` pause behavior.
-
-The CLI is development tooling. It should not be treated as a production wallet interface.
-
-### Browser extension
-
-The extension uses WXT and React.
-
-Entry points:
-
-```text
-entrypoints/background.ts
-entrypoints/popup/
-entrypoints/options/
-```
-
-Extension app logic lives under:
-
-```text
-src/apps/extension/
-```
-
-The UI sends typed messages to the background script. The background script:
-
-1. loads extension settings;
-2. loads `LocalWalletState`;
-3. creates `BrowserWalletStateStore`;
-4. creates `OneTimeSignerAccountClient`;
-5. creates `OneTimeSignerWallet`;
-6. calls SDK methods.
-
-Current extension actions include:
-
-* get snapshot;
-* save settings;
-* import state JSON;
-* clear local extension storage;
-* sync;
-* execute demo `setNumber`;
-* recover.
-
-The extension is a local-development UI over the SDK. It is not a production browser wallet.
+Both surfaces should call `OneTimeSignerWallet` for safety-critical flows. They should not call low-level signing helpers directly unless the flow is explicitly dev-only and documented as unsafe.
 
 ## Security-sensitive areas
 
@@ -742,38 +682,14 @@ Normal wallet flows must never use it.
 Wallet logic is covered by Vitest tests under:
 
 ```text
-test/
-├── crypto/
-├── protocol/
-└── sdk/
+test/crypto/
+test/protocol/
+test/sdk/
 ```
 
-Current coverage includes:
+The suite covers deterministic signer derivation, EIP-712 construction, local state transitions, sync reconciliation, refusal on unsafe desync, and SDK execution/recovery orchestration.
 
-* deterministic auth and recovery signer derivation;
-* separation between auth and recovery streams;
-* walletId behavior;
-* chain/account/implementation context separation;
-* derivation index validation;
-* EIP-712 domain construction;
-* operation `dataHash` construction;
-* operation and recovery signing/recovery;
-* digest changes when key fields change;
-* local operation state transitions;
-* immediate auth key burning after signing;
-* prevention of signing while an operation is pending;
-* operation advancement and pause resolution;
-* recovery-only behavior from `PAUSED`;
-* immediate recovery key burning after signing;
-* successful and failed recovery transitions;
-* JSON state save/load behavior;
-* pure sync reconciliation for `READY`, `PENDING_OPERATION`, `PAUSED`, and `PENDING_RECOVERY`;
-* refusal on unsafe desync;
-* SDK execution flow;
-* SDK recovery flow;
-* persistence of pending state before final sync.
-
-The SDK tests use an in-memory store and fake account client to verify the orchestration sequence without depending on a live chain.
+See [`08-testing.md`](./08-testing.md) for the testing checklist, command matrix, and known gaps.
 
 ## Known limitations
 

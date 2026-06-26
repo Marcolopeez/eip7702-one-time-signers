@@ -16,7 +16,7 @@ The browser wallet exists to test how the one-time signer account model can be d
 
 Its role is to provide a minimal UI over the existing wallet SDK and protocol state machine. It is not a generic Ethereum wallet and does not attempt to implement normal dapp wallet behavior.
 
-The extension helps contributors exercise these flows from a browser UI:
+The extension exposes these prototype flows from a browser UI:
 
 * import existing local wallet state;
 * store local development configuration;
@@ -414,48 +414,18 @@ and uses strict TypeScript settings.
 
 ## State storage and synchronization
 
-Local state is part of the security model.
+The extension uses `BrowserWalletStateStore` for `LocalWalletState`. This state is security-sensitive because it records burned signer indices and pending signatures.
 
-The wallet treats every produced ECDSA signature as exposure of the signing key in the CRQC threat model. For that reason, a signer must be marked as burned immediately after signing, before the transaction is broadcast.
+Settings and wallet state are stored separately:
 
-The SDK enforces this sequence for normal operations:
+| Data | Storage key | Notes |
+| ---- | ----------- | ----- |
+| Extension settings | `one-time-signer-wallet:settings` | Includes local-development configuration such as mnemonic, RPC URL, relayer private key, and optional execution target. |
+| Wallet state | `one-time-signer-wallet:state` | Contains `LocalWalletState` used by the SDK. |
 
-```text
-sync
-derive current auth signer
-select next unused auth signer
-sign operation
-burn current auth key locally
-persist pending state
-broadcast transaction
-persist transaction hash
-wait for receipt
-sync against on-chain storage
-persist reconciled state
-```
+The SDK still owns the signing and persistence sequence. The UI sends high-level requests to the background script; it does not derive signer private keys or call low-level signing helpers directly.
 
-Recovery follows the same rule for recovery keys:
-
-```text
-sync
-derive current recovery signer
-select next auth signer
-select next recovery signer
-sign recovery operation
-burn current recovery key locally
-persist pending recovery state
-broadcast transaction
-persist transaction hash
-wait for receipt
-sync against on-chain storage
-persist reconciled state
-```
-
-The extension uses `BrowserWalletStateStore`, so these state transitions are persisted through browser extension storage.
-
-The final source of truth after a transaction is on-chain storage read through `sync()`, not the transaction receipt. A successful Ethereum receipt can still leave the wallet in a state that must be reconciled carefully.
-
-If local state and on-chain state cannot be safely reconciled, the protocol sync layer raises an invariant error. In that case, the wallet must refuse to sign instead of guessing a new state.
+For the full wallet-side state machine and sync rules, see [`05-wallet-architecture.md`](./05-wallet-architecture.md).
 
 ## Security notes
 
@@ -508,8 +478,8 @@ Known open questions:
 
 * [Project README](../README.md)
 * [Docs index](./README.md)
-* [Wallet architecture](./wallet-architecture.md)
-* [CLI documentation](./cli.md)
-* [Quickstart](./quickstart.md)
-* [Threat model](./threat-model.md)
-* [Contract documentation](./contract.md)
+* [Wallet architecture](./05-wallet-architecture.md)
+* [CLI documentation](./06-cli.md)
+* [Quickstart](./00-quickstart.md)
+* [Threat model](./02-threat-model.md)
+* [Contract documentation](./04-contract.md)

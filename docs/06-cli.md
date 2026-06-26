@@ -15,7 +15,7 @@ It is not production tooling. Do not use it with real assets, production account
 
 ## Purpose
 
-The CLI provides a thin operational layer over the wallet SDK. It lets contributors run the main account flows from the terminal without using the browser extension UI.
+The CLI provides a thin operational layer over the wallet SDK. It lets the main account flows be exercised from the terminal without using the browser extension UI.
 
 The CLI is useful for validating that the wallet preserves the protocol’s core safety property:
 
@@ -326,7 +326,7 @@ Use these for tests, TypeScript checks, and browser extension development.
 
 ## How the CLI fits into the wallet architecture
 
-The CLI is a thin wrapper around the same wallet components used by the rest of the prototype.
+The CLI is a thin wrapper around the wallet SDK:
 
 ```mermaid
 flowchart LR
@@ -337,24 +337,9 @@ flowchart LR
     RPC --> Account[Delegated EIP-7702 account]
 ```
 
-The main components are:
-
-* CLI commands in `src/apps/cli/commands`;
-* shared environment bootstrap in `src/apps/cli/shared`;
-* `OneTimeSignerWallet` as the high-level SDK boundary;
-* `JsonWalletStateStore` as local JSON-backed state storage;
-* `OneTimeSignerAccountClient` as the viem-backed contract adapter;
-* `OneTimeSignerAccount` as the delegated account logic executed at the EOA address.
-
 The SDK owns the critical signing sequence. CLI commands should not call low-level signing helpers directly unless they are explicitly dev-only adversarial tests.
 
-The viem adapter separates reads from writes:
-
-* `sync()` only needs a public RPC client;
-* execution and recovery require a relayer private key;
-* auth and recovery signers never pay gas in these CLI flows.
-
-EIP-712 signing uses the delegated account as the account context. Under EIP-7702, that means the delegated EOA address, not the implementation contract address.
+For the wallet internals behind this flow, see [`05-wallet-architecture.md`](./05-wallet-architecture.md).
 
 ## Safety notes
 

@@ -1,24 +1,39 @@
-# EIP-7702 One-Time Signer Account
+# One-Time Signer Account
 
-Experimental EIP-7702 account prototype using one-time ECDSA authorization keys and one-time ECDSA recovery keys.
+> [!WARNING]
+> **Experimental research prototype.**
+>
+> This project is not audited, not production-ready, and must not be used with real assets, production mnemonics, production RPC endpoints, or accounts that hold value.
 
-This repository is research-oriented. It is **not production-ready wallet software** and must not be used to secure real assets without further review, threat modeling, key-storage work, and adversarial testing.
+## Status
 
-## Overview
+One-Time Signer Account is an experimental Ethereum account and wallet prototype based on:
 
-The project explores a minimal smart-account model where an EOA delegates execution to `OneTimeSignerAccount.sol` through EIP-7702. When the implementation executes as delegated code:
+* EIP-7702 delegated EOA execution;
+* EIP-712 signed operations;
+* one-time ECDSA authorization keys;
+* one-time ECDSA recovery keys;
+* a TypeScript wallet that mirrors the account’s key-consumption rules.
 
-```text
-address(this) == delegated EOA
-storage       == delegated EOA storage
-code          == implementation code
-```
+The project studies a narrow partial post-quantum threat model: if a CRQC-capable adversary observes a valid ECDSA signature, the corresponding ECDSA key must be treated as exposed.
 
-The contract stores signer **addresses**, not public keys. The TypeScript wallet derives and manages the corresponding ECDSA private keys off-chain.
+This is not full post-quantum security. The system still uses ECDSA.
 
-The core security experiment is a post-quantum-inspired threat model: once an ECDSA signature is observed, the corresponding private key must be treated as exposed. Therefore, every authorization key is intended to be used exactly once.
+## What this project explores
 
-A normal operation is signed by the current authorization key and commits to the next authorization key:
+Ethereum wallets commonly rely on long-lived ECDSA keys. This project explores a stricter design rule:
+
+> An ECDSA key that has produced a valid signature must not remain able to control the account.
+
+The prototype asks whether an EOA, using EIP-7702 delegation, can behave like a minimal smart account that rotates its authorized signer after every valid authorization.
+
+The main security objective is to reduce the window in which an observed ECDSA signature remains useful.
+
+## Core idea
+
+A one-time signer is an ECDSA keypair intended to authorize exactly one account operation.
+
+A normal operation is signed by the current authorized signer and includes the next authorized signer:
 
 ```text
 auth[i] signs Operation(
@@ -30,118 +45,78 @@ auth[i] signs Operation(
 )
 ```
 
-After a valid signature is verified, the contract rotates to `auth[i+1]` before validating or executing the external call. If the external call fails, the whole transaction must not revert, because reverting would roll back the rotation while the signature from `auth[i]` has already been exposed.
+After the account verifies a valid signature from `auth[i]`, that signer is considered exposed.
+
+The contract therefore attempts to rotate to `auth[i+1]` before validating the executable part of the operation and before calling the external target.
+
+If the account cannot rotate to a valid next signer, it enters paused mode. In paused mode, normal execution is blocked and recovery is required.
+
+Recovery uses the same principle: recovery signers are also one-time keys.
+
+The wallet must follow the corresponding off-chain rule:
+
+```text
+sign -> burn locally -> persist -> broadcast
+```
+
+After a transaction, the final source of truth is on-chain account storage read through `sync()`, not the transaction receipt.
+
+## How EIP-7702 fits
+
+`src/OneTimeSignerAccount.sol` is designed to be deployed as reusable implementation code and used by an EOA through EIP-7702 delegation.
+
+In the delegated execution context:
+
+```text
+address(this) = delegated EOA
+storage       = delegated EOA storage
+code          = implementation code
+```
+
+This matters for both state and signatures.
+
+Account state is stored in the delegated EOA, not in the implementation contract. 
+
+Implementation note: the account cannot protect against compromise of the EIP-7702 authority key that controls delegation at the protocol level.
+
+For the full conceptual model, start with [`docs/01-overview.md`](docs/01-overview.md) and [`docs/02-threat-model.md`](docs/02-threat-model.md).
 
 ## Repository layout
 
 ```text
-src/
-  OneTimeSignerAccount.sol           EIP-7702 delegated account implementation.
-
-script/
-  DeployImplementation.s.sol        Deploys the reusable implementation.
-  InitializeDelegatedAccount.s.sol  Attaches delegation and initializes the EOA storage.
-  DeployExecutionTarget.s.sol       Deploys the local execution target used in tests.
-
-scripts/
-  README.md                         Local E2E script documentation.
-  run-local-e2e.sh                  Full Anvil/Foundry/wallet E2E flow.
-
-test/
-  OneTimeSignerAccountTest.t.sol Foundry tests for delegated execution and recovery.
-  mocks/ExecutionTarget.sol         Target contract used to test calls and reverts.
-
-wallet/
-  README.md                         Wallet module documentation.
-  src/account/                      EIP-712, client, state machine, sync, key selection.
-  src/crypto/                       Deterministic signer derivation.
-  src/storage/                      JSON-backed local state store.
-  src/cli/                          Developer CLI flows.
-  test/                             TypeScript unit tests.
-
-docs/
-  README.md                         Design notes, threat model, invariants, limitations.
+.
+├── src/
+│   └── OneTimeSignerAccount.sol          # Solidity delegated account implementation
+├── test/
+│   ├── OneTimeSignerAccountTest.t.sol    # Foundry account tests
+│   └── mocks/ExecutionTarget.sol         # Local execution target
+├── script/                               # Foundry deployment/init scripts
+├── scripts/
+│   └── run-local-e2e.sh                  # Local end-to-end flow
+├── wallet/                               # TypeScript wallet, SDK, CLI, extension
+│   ├── entrypoints/                      # WXT extension entrypoints
+│   ├── src/
+│   │   ├── adapters/                     # Storage and viem adapters
+│   │   ├── apps/
+│   │   │   ├── cli/                      # Local development CLI commands
+│   │   │   └── extension/                # Experimental browser-extension app
+│   │   ├── contracts/                    # Contract ABI files
+│   │   ├── crypto/                       # Deterministic signer derivation and hex helpers
+│   │   ├── protocol/                     # Protocol logic (EIP-712, state, signer selection, sync logic)
+│   │   └── sdk/                          # High-level wallet orchestration
+│   └── test/                             # Vitest tests
+├── docs/                                 # Project documentation
+├── SECURITY.md                           # Security policy
+└── README.md
 ```
 
-## Architecture
+## Quickstart
 
-```text
-BIP-39 mnemonic + walletId
-        |
-        v
-wallet/ TypeScript module
-  derives one-time auth/recovery signer streams
-  signs EIP-712 Operation / RecoveryOperation messages
-  burns keys locally at signing time
-  persists pending signatures before broadcast
-  reconciles local state from on-chain storage
-        |
-        v
-relayer transaction
-  pays gas but does not authorize the operation
-        |
-        v
-delegated EOA using OneTimeSignerAccount code
-  verifies EIP-712 signatures against address(this)
-  rotates signers before external execution
-  returns failure data instead of reverting after valid signatures
-  pauses if rotation cannot safely install the next signer
-  uses one-time recovery keys to restore the account
-```
+For the full setup path, see [`docs/00-quickstart.md`](docs/00-quickstart.md).
 
-## Threat model
-
-This prototype assumes an adversary that may eventually recover an ECDSA private key after observing a valid signature from that key. Under this model:
-
-- an ECDSA key must be considered unsafe immediately after signing;
-- a signed operation can consume a key even if its target call fails;
-- expired operations and invalid targets may still rotate the signer;
-- recovery keys must also be one-time keys;
-- reverting after a valid signature can be dangerous if it restores an already-exposed signer.
-
-The contract does **not** protect against compromise of the native EIP-7702 authority key that controls the EOA delegation at protocol level. If that authority key is recovered from a set-code authorization or otherwise compromised, an attacker may be able to replace or clear the delegation outside this contract's control. This is an important out-of-scope risk for the current experiment.
-
-See [`docs/README.md`](docs/README.md) for the detailed design notes and limitations.
-
-## Operation lifecycle
-
-The normal relayed flow is:
-
-1. Wallet syncs local state with delegated-account storage.
-2. Wallet derives the current auth signer from `currentAuthIndex`.
-3. Wallet searches for a fresh `nextAuthorizedSigner` that is not locally burned and not consumed/reserved on-chain.
-4. Wallet builds an `Operation` with target call data and `nextAuthorizedSigner`.
-5. Wallet signs EIP-712 typed data using the current auth private key.
-6. Wallet immediately marks the current auth index as burned and persists `PENDING_OPERATION` before broadcasting.
-7. Relayer submits `executeSignedAndRotate(operation, signature)`.
-8. Contract verifies the signature against `currentAuthorizedSigner`.
-9. Contract rotates or pauses before validating/executing the target.
-10. Wallet waits for inclusion and then syncs from contract storage.
-
-The receipt status is not enough to understand the semantic outcome. The account function can return `(success = false, result)` while the Ethereum transaction itself succeeds and security-relevant state changes persist.
-
-## Recovery lifecycle
-
-Recovery uses active one-time recovery signers. The current implementation supports both:
-
-- `rotateAuthorizedSignerThroughRecovery(nextAuthorizedSigner, nextRecoverySigner)`, called directly by an active recovery signer;
-- `signedRecovery(RecoveryOperation, signature)`, submitted by a relayer with an EIP-712 signature from an active recovery signer.
-
-A successful recovery:
-
-1. consumes the current recovery signer;
-2. installs a fresh authorized signer;
-3. registers a fresh recovery signer;
-4. unpauses the account if it was paused.
-
-The wallet currently restricts recovery signing to locally `PAUSED` accounts. The contract is more permissive: active recovery keys can rotate the account even when it is not paused. This is intentional in the contract tests, but wallet UX should treat recovery as an emergency flow unless a broader policy is added.
-
-## Basic commands
-
-From the repository root:
+Minimal local checks:
 
 ```bash
-forge build
 forge test
 ```
 
@@ -150,49 +125,80 @@ From `wallet/`:
 ```bash
 pnpm install
 pnpm typecheck
+pnpm typecheck:extension
 pnpm test
+pnpm extension:build
 ```
 
-Run the automated local E2E flow from the repository root:
+Run the local end-to-end flow from the repository root:
 
 ```bash
 ./scripts/run-local-e2e.sh
 ```
 
-The E2E script starts Anvil with the Prague hardfork, deploys the implementation, attaches EIP-7702 delegation, initializes the delegated account, runs normal and edge-case wallet flows, triggers pause, performs recovery, and writes logs under `.e2e/`.
-
-## Current implementation status
-
-Implemented:
-
-- EIP-7702-oriented delegated account contract;
-- initialization of delegated EOA storage;
-- one-time authorized signer rotation;
-- non-reverting failure semantics after valid authorization;
-- pause-on-invalid-next-authorized-signer behavior;
-- one-time recovery signer consumption and renewal;
-- EIP-712 operation and recovery signing;
-- deterministic `auth` and `recovery` signer derivation;
-- local wallet state machine with burned-key tracking;
-- lookahead-based key selection using on-chain signer status;
-- viem-based read/write client and relayer submission;
-- local JSON state persistence for development;
-- Foundry tests and TypeScript unit tests;
-- local E2E flow.
-
-Not implemented / not production-ready:
-
-- secure enclave, hardware wallet, or encrypted key storage;
-- encrypted local state;
-- browser extension, mobile app, or user-facing UI;
-- multi-device coordination;
-- event indexing or durable transaction history;
-- production recovery UX;
-- formal verification;
-- production-grade mempool, replacement, and dropped-transaction handling.
+This flow is intended for local development only. It uses local keys, local state, local contracts, and a local EIP-7702 test environment.
 
 ## Documentation
 
-- [`docs/README.md`](docs/README.md): architecture, threat model, invariants, failure semantics, limitations, and future work.
-- [`wallet/README.md`](wallet/README.md): TypeScript wallet module, key derivation, local state, sync, and CLI flows.
-- [`scripts/README.md`](scripts/README.md): local E2E workflow and environment.
+Start with [`docs/README.md`](docs/README.md).
+
+Primary documents:
+
+* [`docs/00-quickstart.md`](docs/00-quickstart.md) — local setup and first run
+* [`docs/01-overview.md`](docs/01-overview.md) — conceptual entry point
+* [`docs/02-threat-model.md`](docs/02-threat-model.md) — threat model, assumptions, and invariants
+* [`docs/03-architecture.md`](docs/03-architecture.md) — system architecture and trust boundaries
+* [`docs/04-contract.md`](docs/04-contract.md) — Solidity account behavior
+* [`docs/05-wallet-architecture.md`](docs/05-wallet-architecture.md) — TypeScript wallet design
+* [`docs/06-cli.md`](docs/06-cli.md) — local CLI flows
+* [`docs/07-browser-wallet.md`](docs/07-browser-wallet.md) — experimental browser wallet
+* [`docs/08-testing.md`](docs/08-testing.md) — test layers and validation checklist
+
+Package-level maps:
+
+* [`wallet/README.md`](wallet/README.md) — wallet package overview
+* [`scripts/README.md`](scripts/README.md) — local and Foundry scripts
+
+## Security
+
+Read [`SECURITY.md`](SECURITY.md) and [`docs/02-threat-model.md`](docs/02-threat-model.md) before relying on any account or wallet behavior.
+
+Critical constraints:
+
+* the project is experimental and unaudited;
+* the account still uses ECDSA;
+* the CRQC model is partial and does not provide full post-quantum security;
+* local wallet state is security-critical because it records burned keys and pending signatures;
+* the browser wallet is not a production wallet and does not provide production-grade secret storage;
+* EIP-7702 delegation remains ultimately controlled by the original EOA authority key.
+
+## Current implementation status
+
+Implemented prototype components include:
+
+* Solidity delegated account implementation;
+* Foundry tests;
+* Foundry deployment and initialization scripts;
+* local EIP-7702 end-to-end script;
+* TypeScript protocol layer;
+* wallet SDK;
+* JSON and browser storage adapters;
+* viem client adapter;
+* CLI commands for initialization, sync, execution, failure scenarios, and recovery;
+* WXT/React browser extension prototype.
+
+Known limitations include:
+
+* no audit;
+* no production hardening;
+* no formal verification;
+* no production-grade key custody;
+* no encrypted browser wallet vault;
+* no multi-device coordination;
+* no production recovery UX;
+* no support for real assets;
+* EIP-7702 delegation remains ultimately controlled by the original EOA authority key; the prototype assumes a future mechanism such as EIP-7851 to disable that authority.
+
+## License
+
+TODO: add license information before publishing.

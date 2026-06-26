@@ -6,8 +6,6 @@ This project is an experimental research prototype.
 
 It is not production-ready, has not been audited for production use, and must not be used with real assets. The model described here is intentionally narrow: it explores a partial post-quantum threat model for ECDSA-based accounts using EIP-7702 and one-time signer keys.
 
-This document is for contributors working on the Solidity account, the TypeScript wallet, tests, CLI flows, and browser extension prototype.
-
 ## Core assumption
 
 The project assumes a CRQC-capable adversary may be able to break ECDSA after observing a valid ECDSA signature from a key.
@@ -58,15 +56,13 @@ The contract stores signer addresses, not raw private keys. Each signer address 
 
 The threat model assumes an attacker may be able to:
 
-* observe valid ECDSA signatures in the mempool, transaction history, relayer logs, wallet logs, or other broadcast paths;
-* use CRQC capabilities to recover or otherwise compromise the ECDSA key after observing a valid signature;
+* observe valid ECDSA signatures in the mempool, transaction history, relayer logs, or other broadcast paths;
+* use CRQC capabilities to recover the ECDSA key after observing a valid signature;
 * replay previously observed signatures;
 * submit signed operations as an untrusted relayer;
 * delay, drop, reorder, or front-run submitted transactions;
 * call public account functions directly when they have a valid signature or control the expected signer;
 * provide malicious targets that revert, return arbitrary data, or attempt reentrant behavior;
-* exploit bugs in contributor changes that accidentally make consumed keys valid again;
-* exploit wallet state bugs that sign with a key already consumed locally or on-chain.
 
 The design assumes attackers can observe signatures. It does not rely on signature secrecy after signing.
 
@@ -83,7 +79,6 @@ This prototype does not protect against:
 * chain reorgs, censorship, transaction non-inclusion, or denial of service;
 * full post-quantum security;
 * production-grade key custody, backups, or recovery UX;
-* use with real assets.
 
 Implementation note: the Solidity account explicitly documents that it cannot protect against compromise of the EIP-7702 authority key. That limitation is central to the threat model.
 
@@ -123,7 +118,7 @@ Recovery keys follow the same CRQC rule as normal auth keys:
 
 A consumed recovery signer is deactivated and remains reserved through `isConsumedOrReservedSigner`.
 
-Implementation note: the contract supports recovery rotation even when the account is not paused. The current wallet prototype restricts recovery signing to local `PAUSED` state. Contributors should avoid assuming that wallet policy and contract permissions are identical.
+Implementation note: the contract supports recovery rotation even when the account is not paused. The current wallet prototype restricts recovery signing to local `PAUSED` state. 
 
 Implementation note: if `nextAuthorizedSigner` is valid but `nextRecoverySigner` is invalid, the contract rotates the authorized signer and unpauses the account, but does not register a fresh recovery signer. The wallet sync logic treats this as a critical partial recovery and refuses to reconcile silently.
 
@@ -300,19 +295,4 @@ Expected behavior for failed recovery:
 * invalid next authorized signer returns failure and leaves account paused;
 * invalid next recovery signer may leave the account unpaused with the authorized signer advanced but without the expected recovery signer registered.
 
-The last case is treated as critical by the wallet. Contributors should avoid relying on partial recovery as a normal state.
-
-## Contributor checklist
-
-* Do not move signer rotation after external calls.
-* Do not allow used keys to become valid again.
-* Do not make recovery keys reusable.
-* Do not treat transaction receipts as final wallet state.
-* Do not sign if local and on-chain state cannot be reconciled.
-* Do not use the implementation contract address as the EIP-712 `verifyingContract`.
-* Do not bypass immediate local persistence after signing.
-* Do not reuse locally burned auth or recovery indices.
-* Do not convert dev-only unsafe signing helpers into production wallet paths.
-* Do not hide paused-state or recovery warnings in the UI.
-* Do not present this project as production-ready.
-* Do not use this prototype with real assets.
+The last case is treated as critical by the wallet. Do not rely on partial recovery as a normal state.

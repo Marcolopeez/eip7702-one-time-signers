@@ -93,38 +93,13 @@ Implementation note: the account contract does not protect against compromise of
 
 ### Solidity account
 
-`src/OneTimeSignerAccount.sol` implements the on-chain account state machine.
+`src/OneTimeSignerAccount.sol` implements the delegated EOA account state machine. It owns the on-chain rules for initialization, signer rotation, pausing, EIP-712 validation, and recovery.
 
-It is responsible for:
-
-* initializing delegated EOA storage;
-* tracking `currentAuthorizedSigner`;
-* tracking consumed or reserved signer addresses;
-* tracking active recovery signers;
-* verifying EIP-712 operation signatures;
-* rotating the authorized signer before external calls;
-* pausing when a valid signature is observed but rotation cannot safely continue;
-* recovering the account with one-time recovery signers.
-
-Normal signed execution uses `executeSignedAndRotate()`.
-
-Recovery through relayed EIP-712 signatures uses `signedRecovery()`.
-
-The contract stores signer addresses only. The corresponding private keys are derived and managed off-chain by the wallet.
+See [`04-contract.md`](./04-contract.md) for storage, function behavior, execution order, and contract-level invariants.
 
 ### TypeScript wallet
 
-The TypeScript wallet under `wallet/` manages the off-chain side of the protocol.
-
-It is responsible for:
-
-* deriving deterministic authorization and recovery signer streams;
-* building and signing EIP-712 operations;
-* selecting fresh next signers;
-* persisting local key-consumption state immediately after signing;
-* broadcasting signed operations through a relayer account;
-* reading delegated-account storage;
-* reconciling local state through `sync()`.
+The TypeScript wallet under `wallet/` implements the off-chain side of the protocol: signer derivation, EIP-712 payload construction, local key burning, persistence, broadcasting, and sync.
 
 The critical wallet-side rule is:
 
@@ -132,55 +107,25 @@ The critical wallet-side rule is:
 sign -> burn locally -> persist -> broadcast
 ```
 
-The wallet must not wait for a receipt before marking a signer as consumed locally. Once a signature exists, the corresponding key is considered unsafe.
-
 After a transaction, the final source of truth is on-chain storage read through `sync()`, not the receipt.
+
+See [`05-wallet-architecture.md`](./05-wallet-architecture.md) for the wallet state machine, SDK boundary, storage adapters, and reconciliation rules.
 
 ### CLI
 
-The CLI commands are developer entrypoints for local testing and protocol exploration.
+The CLI is a local operational surface for initialization, sync, execution, failure scenarios, pause behavior, and recovery.
 
-They cover initialization, synchronization, normal execution, failure scenarios, invalid-next-signer pause behavior, and recovery.
+Some CLI flows are intentionally adversarial or dev-only. They exist to exercise contract behavior and must not be treated as production wallet flows.
 
-Main commands include:
-
-```text
-pnpm prepare:init
-pnpm state:init
-pnpm sync
-pnpm execute:set-number
-pnpm execute:target-revert
-pnpm execute:expired-set-number
-pnpm execute:invalid-next-auth
-pnpm recover
-```
-
-The local end-to-end script runs these flows against Anvil:
-
-```text
-./scripts/run-local-e2e.sh
-```
-
-Some CLI flows are intentionally adversarial or dev-only. They exist to test contract behavior and must not be treated as production wallet flows.
+See [`06-cli.md`](./06-cli.md) for commands and environment variables.
 
 ### Browser extension
 
-The browser extension is a WXT/React prototype around the same wallet SDK.
+The browser extension is a WXT/React prototype around the same wallet SDK. It exists to test the model from a browser-extension environment.
 
-It exists to test how the one-time signer model behaves from a browser extension environment.
+It is not a generic Ethereum wallet: it does not implement an injected provider, dapp connection flow, arbitrary transaction signing, encrypted vault, unlock lifecycle, or production secret handling.
 
-Current capabilities include:
-
-* importing local wallet state;
-* storing local development settings;
-* syncing account state;
-* executing the demo `ExecutionTarget.setNumber(uint256)` call;
-* recovering a paused account;
-* inspecting and exporting local wallet state.
-
-The extension is not a generic Ethereum wallet. It does not implement an injected provider, dapp connection flow, arbitrary transaction signing, encrypted vault, unlock lifecycle, or production secret handling.
-
-Use it only with local Anvil/test deployments.
+See [`07-browser-wallet.md`](./07-browser-wallet.md) for capabilities, storage, UI, and limitations.
 
 ## Goals and non-goals
 
@@ -212,12 +157,12 @@ Use it only with local Anvil/test deployments.
 ## Where to go next
 
 * [`README.md`](../README.md): repository entry point and basic commands.
-* [`docs/README.md`](./README.md): documentation index.
-* [`docs/quickstart.md`](./quickstart.md): local setup and first run.
-* [`docs/threat-model.md`](./threat-model.md): threat model, assumptions, and security invariants.
-* [`docs/architecture.md`](./architecture.md): system architecture and trust boundaries.
-* [`docs/contract.md`](./contract.md): Solidity account behavior.
-* [`docs/wallet-architecture.md`](./wallet-architecture.md): TypeScript wallet internals.
-* [`docs/cli.md`](./cli.md): CLI commands and local workflows.
-* [`docs/browser-wallet.md`](./browser-wallet.md): browser extension prototype.
-* [`docs/testing.md`](./testing.md): Foundry, Vitest, and local E2E validation.
+* [`README.md`](./README.md): documentation index.
+* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
+* [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
+* [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
+* [`04-contract.md`](./04-contract.md): Solidity account behavior.
+* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.
+* [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
+* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
+* [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.

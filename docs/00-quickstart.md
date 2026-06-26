@@ -77,11 +77,11 @@ The browser extension is part of the experimental prototype and is intended for 
 
 ## Next steps
 
-* [`docs/overview.md`](overview.md)
-* [`docs/threat-model.md`](threat-model.md)
-* [`docs/architecture.md`](architecture.md)
-* [`docs/contract.md`](contract.md)
-* [`docs/wallet-architecture.md`](wallet-architecture.md)
-* [`docs/cli.md`](cli.md)
-* [`docs/browser-wallet.md`](browser-wallet.md)
-* [`docs/testing.md`](testing.md)
+* [`docs/01-overview.md`](01-overview.md)
+* [`docs/02-threat-model.md`](02-threat-model.md)
+* [`docs/03-architecture.md`](03-architecture.md)
+* [`docs/04-contract.md`](04-contract.md)
+* [`docs/05-wallet-architecture.md`](05-wallet-architecture.md)
+* [`docs/06-cli.md`](06-cli.md)
+* [`docs/07-browser-wallet.md`](07-browser-wallet.md)
+* [`docs/08-testing.md`](08-testing.md)
