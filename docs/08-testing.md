@@ -484,3 +484,18 @@ test_signedRecovery_replayFailsBecauseRecoverySignerWasConsumed
 * Browser extension checks cover type checking and buildability. They do not appear to include browser automation or UI interaction tests.
 * The e2e script uses deterministic local Anvil development keys and must not be used with real assets.
 * Recovery and reconciliation have targeted tests for critical states, but any new partial-recovery or ambiguous sync state should get explicit tests before being relied on.
+
+
+## Where to go next
+
+* [`../README.md`](../README.md): repository entry point and basic commands.
+* [`README.md`](./README.md): documentation index.
+* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
+* [`01-overview.md`](01-overview.md): conceptual entry point. 
+* [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
+* [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
+* [`04-contract.md`](./04-contract.md): Solidity account behavior.
+* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.
+* [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
+* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
+* :pushpin: **[`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.**

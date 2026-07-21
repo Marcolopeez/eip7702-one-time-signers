@@ -327,14 +327,16 @@ Dev-only and test flows:
 
 The invalid-next-signer path intentionally bypasses normal wallet validation to test contract pause behavior. Normal wallet flows must not use that unsafe transition.
 
-## Related documentation
+## Where to go next
 
-* [`README.md`](../README.md): repository entry point.
+* [`../README.md`](../README.md): repository entry point and basic commands.
 * [`README.md`](./README.md): documentation index.
 * [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
-* [`02-threat-model.md`](./02-threat-model.md): threat model and security assumptions.
-* [`04-contract.md`](./04-contract.md): Solidity account behavior and contract-level invariants.
-* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals and state machine.
+* [`01-overview.md`](01-overview.md): conceptual entry point. 
+* [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
+* :pushpin: **[`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.**
+* [`04-contract.md`](./04-contract.md): Solidity account behavior.
+* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.
 * [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
-* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension architecture and limitations.
+* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
 * [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.

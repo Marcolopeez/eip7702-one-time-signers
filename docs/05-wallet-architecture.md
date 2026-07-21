@@ -703,3 +703,18 @@ See [`08-testing.md`](./08-testing.md) for the testing checklist, command matrix
 * Low-level signing helpers can be misused if called without the state machine.
 * Recovery is intentionally restricted to locally/on-chain reconciled `PAUSED` state.
 * The package script for `sign:demo` should be checked: `package.json` references `sign-Demo.ts`, while the repository tree contains `signDemo.ts`.
+
+
+## Where to go next
+
+* [`../README.md`](../README.md): repository entry point and basic commands.
+* [`README.md`](./README.md): documentation index.
+* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
+* [`01-overview.md`](01-overview.md): conceptual entry point. 
+* [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
+* [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
+* [`04-contract.md`](./04-contract.md): Solidity account behavior.
+* :pushpin: **[`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.**
+* [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
+* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
+* [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.

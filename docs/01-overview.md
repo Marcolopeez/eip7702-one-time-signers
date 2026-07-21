@@ -158,7 +158,8 @@ See [`07-browser-wallet.md`](./07-browser-wallet.md) for capabilities, storage, 
 
 * [`README.md`](../README.md): repository entry point and basic commands.
 * [`README.md`](./README.md): documentation index.
-* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
+* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.**
+* :pushpin: **[`01-overview.md`](01-overview.md): conceptual entry point.** 
 * [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
 * [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
 * [`04-contract.md`](./04-contract.md): Solidity account behavior.
