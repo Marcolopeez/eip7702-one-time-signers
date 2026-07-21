@@ -149,7 +149,7 @@ Primary documents:
 * [`docs/02-threat-model.md`](docs/02-threat-model.md) — threat model, assumptions, and invariants
 * [`docs/03-architecture.md`](docs/03-architecture.md) — system architecture and trust boundaries
 * [`docs/04-contract.md`](docs/04-contract.md) — Solidity account behavior
-* [`docs/05-wallet-architecture.md`](docs/05-wallet-architecture.md) — TypeScript wallet design
+* [`docs/05-wallet-architecture.md`](docs/05-wallet-architecture.md) — TypeScript wallet design and key derivation
 * [`docs/06-cli.md`](docs/06-cli.md) — local CLI flows
 * [`docs/07-browser-wallet.md`](docs/07-browser-wallet.md) — experimental browser wallet
 * [`docs/08-testing.md`](docs/08-testing.md) — test layers and validation checklist

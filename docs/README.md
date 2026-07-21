@@ -34,7 +34,7 @@ The project explores an EIP-7702 delegated account model using one-time ECDSA si
 ### TypeScript wallet review
 
 1. [`01-overview.md`](01-overview.md)
-2. [`05-wallet-architecture.md`](05-wallet-architecture.md)
+2. [`05-wallet-architecture.md`](05-wallet-architecture.md): TypeScript wallet internals, including key derivation
 3. [`06-cli.md`](06-cli.md)
 4. [`07-browser-wallet.md`](07-browser-wallet.md)
 5. [`08-testing.md`](08-testing.md)

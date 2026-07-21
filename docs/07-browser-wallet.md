@@ -494,7 +494,7 @@ Known open questions:
 * [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
 * [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
 * [`04-contract.md`](./04-contract.md): Solidity account behavior.
-* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.
+* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals, including key derivation.
 * [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
 * :pushpin: **[`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.**
 * [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.

@@ -91,7 +91,7 @@ Run the experimental browser extension in WXT development mode.
 
 ## Documentation
 
-* [Wallet architecture](../docs/05-wallet-architecture.md)
+* [Wallet architecture and key derivation](../docs/05-wallet-architecture.md)
 * [CLI](../docs/06-cli.md)
 * [Browser wallet](../docs/07-browser-wallet.md)
 * [Testing](../docs/08-testing.md)

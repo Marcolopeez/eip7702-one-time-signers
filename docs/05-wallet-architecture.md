@@ -201,6 +201,110 @@ The extension UI sends messages to the WXT background script. The background scr
 
 The popup does not directly derive private keys or call low-level signing helpers.
 
+## Key derivation
+
+This section is the primary documentation owner for wallet-side signer derivation.
+
+`wallet/src/crypto/derivation.ts` derives two deterministic one-time ECDSA signer streams:
+
+```text
+auth[i]      signer for normal account operations
+recovery[i]  signer for recovery operations
+```
+
+The derivation design is part of the wallet security model, but it is not post-quantum cryptography. It still derives ECDSA keys. Its purpose is to avoid accidental signer reuse across streams, accounts, chains, implementations, and wallet installations.
+
+### Derivation inputs
+
+The derivation context includes:
+
+* BIP-39 mnemonic;
+* optional BIP-39 passphrase;
+* `walletId`;
+* `chainId`;
+* delegated account address;
+* implementation address;
+* logical account index.
+
+The delegated account address is the EIP-7702 delegated EOA. The implementation address is included so that the same mnemonic and delegated account do not silently reuse the same signer stream across different account implementations.
+
+### Auth and recovery streams
+
+The wallet derives two logical streams:
+
+```text
+auth      normal operation authorization
+recovery  recovery authorization
+```
+
+The `auth` stream is bound to `walletId`, which represents a specific wallet installation.
+
+The `recovery` stream is not bound to `walletId`. It can be reconstructed from mnemonic and passphrase if the installation state, including `walletId`, is lost.
+
+This asymmetry is intentional:
+
+* auth signing is installation-bound to reduce accidental stream reuse across wallet instances;
+* recovery remains reconstructible so a lost installation can recover into a new auth stream.
+
+### Implemented path format
+
+The implemented path format is hardened-only:
+
+```text
+auth[i]      m / 7702' / 60' / accountIndex' / 0' / i'
+recovery[i]  m / 7702' / 60' / accountIndex' / 1' / i'
+```
+
+All signer paths are hardened. The wallet does not expose xpub or watch-only derivation because every leaf is a signing key that may be treated as exposed after one valid signature.
+
+### HKDF separation
+
+Before BIP-32 derivation, the module applies HKDF-SHA256 to separate roots and bind the stream to the account context:
+
+```text
+rootSeed       = BIP39(mnemonic, passphrase)
+accountContext = chainId | delegatedAccount | implementationAddress | accountIndex
+
+walletRoot     = HKDF(rootSeed, salt = walletId, info = "...:wallet-root")
+recoveryRoot   = HKDF(rootSeed, fixed salt, info = "...:recovery-root")
+streamSeed     = HKDF(streamRoot, salt = accountContext, info = "...:<stream>:bip32-master-seed")
+```
+
+The account context binds derived signer leaves to:
+
+```text
+chainId | delegatedAccount | implementationAddress | accountIndex
+```
+
+This avoids accidentally deriving the same one-time signer for different chains, delegated accounts, logical accounts, or implementations.
+
+### Design implications of `walletId`
+
+`walletId` is expected to be a 32-byte per-install identifier.
+
+| Condition | Result |
+| --------- | ------ |
+| Same mnemonic + same `walletId` | Same auth stream. |
+| Same mnemonic + different `walletId` | Different auth stream. |
+| Lost `walletId` | The active auth stream may not be reconstructible. |
+| Lost `walletId` but mnemonic/passphrase available | Recovery stream can still be reconstructed. |
+
+After recovery, the wallet can move into a new auth stream associated with a new installation.
+
+### Security implications
+
+Key derivation supports the one-time signer invariant, but it does not enforce that invariant by itself. Enforcement comes from the combination of:
+
+* contract-side consumed/reserved signer tracking;
+* wallet-side burned index tracking;
+* signing through the SDK state machine;
+* immediate persistence after signing;
+* synchronization against delegated-account storage.
+
+Multi-device active signing is out of scope. Two devices sharing the same mnemonic and `walletId` could attempt to sign with the same current auth key unless an additional coordination mechanism exists.
+
+Losing local state after a signature has been produced is dangerous. The derivation function can reproduce private keys; it cannot know which leaves have already signed unless the wallet state and on-chain state can be reconciled safely.
+
 ## Protocol layer
 
 The protocol layer lives in:
@@ -714,7 +818,7 @@ See [`08-testing.md`](./08-testing.md) for the testing checklist, command matrix
 * [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
 * [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
 * [`04-contract.md`](./04-contract.md): Solidity account behavior.
-* :pushpin: **[`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals.**
+* :pushpin: **[`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals, including key derivation.**
 * [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
 * [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
 * [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.
