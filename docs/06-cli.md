@@ -11,15 +11,9 @@ It is intended for:
 * testing wallet state transitions;
 * exercising failure and recovery paths.
 
-It is not production tooling. Do not use it with real assets, production accounts, or secrets that matter.
-
 ## Purpose
 
 The CLI provides a thin operational layer over the wallet SDK. It lets the main account flows be exercised from the terminal without using the browser extension UI.
-
-The CLI is useful for validating that the wallet preserves the protocol’s core safety property:
-
-> Once a one-time ECDSA signer has produced an observable valid signature, that signer must never control the account again.
 
 The CLI also makes it easier to inspect how local wallet state changes across:
 
@@ -52,47 +46,6 @@ The CLI does not replace the root-level local demo flow. For the end-to-end setu
 ```bash
 ./scripts/run-local-e2e.sh
 ```
-
-## Environment
-
-Environment variables are parsed by `src/apps/cli/shared/env.ts` and `src/apps/cli/shared/walletFromEnv.ts`.
-
-The scripts fail fast if required values are missing or malformed.
-
-### Common variables
-
-| Variable              |                                          Required | Default                 | Used by                          | Description                                                                                     |
-| --------------------- | ------------------------------------------------: | ----------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `MNEMONIC`            |                                               Yes | —                       | wallet-backed commands           | BIP-39 mnemonic used to derive auth and recovery signers.                                       |
-| `BIP39_PASSPHRASE`    |                                                No | `""`                    | wallet-backed commands           | Optional BIP-39 passphrase.                                                                     |
-| `WALLET_ID`           | Yes for initialization and invalid-next-auth demo | —                       | init/dev flows                   | `0x`-prefixed wallet identifier included in deterministic derivation.                           |
-| `RPC_URL`             |                                                No | `http://127.0.0.1:8545` | state, sync, execution, recovery | RPC endpoint for the development chain.                                                         |
-| `STATE_IN`            |                                                No | `.local/state.json`     | sync, execution, recovery        | Local wallet state file to read.                                                                |
-| `STATE_OUT`           |                                                No | `.local/state.json`     | `state:init`                     | Local wallet state file to write.                                                               |
-| `RELAYER_PRIVATE_KEY` |                            Yes for write commands | —                       | execution and recovery           | Private key used only to submit transactions and pay gas. It is not an auth or recovery signer. |
-
-### Initialization variables
-
-| Variable                 | Required | Default            | Used by        | Description                                                         |
-| ------------------------ | -------: | ------------------ | -------------- | ------------------------------------------------------------------- |
-| `AUTHORITY_PRIVATE_KEY`  |      Yes | —                  | `prepare:init` | Private key of the EOA that becomes the delegated EIP-7702 account. |
-| `IMPLEMENTATION_ADDRESS` |      Yes | —                  | `prepare:init` | Address of the deployed `OneTimeSignerAccount` implementation.      |
-| `CHAIN_ID`               |       No | `31337`            | `prepare:init` | Chain ID included in derivation and EIP-712 context.                |
-| `ACCOUNT_INDEX`          |       No | `0`                | `prepare:init` | Account index included in deterministic derivation.                 |
-| `INIT_OUT`               |       No | `.local/init.json` | `prepare:init` | JSON initialization file consumed by `state:init`.                  |
-| `INIT_ENV_OUT`           |       No | `.local/init.env`  | `prepare:init` | Shell env file for Foundry initialization scripts.                  |
-| `INIT_IN`                |       No | `.local/init.json` | `state:init`   | Initialization file produced by `prepare:init`.                     |
-
-### Operation variables
-
-| Variable                   | Required | Default          | Used by                | Description                                                                             |
-| -------------------------- | -------: | ---------------- | ---------------------- | --------------------------------------------------------------------------------------- |
-| `EXECUTION_TARGET_ADDRESS` |      Yes | —                | execution demos        | Address of the local `ExecutionTarget` contract.                                        |
-| `NEW_NUMBER`               |       No | command-specific | set-number demos       | Value passed to `ExecutionTarget.setNumber(uint256)`.                                   |
-| `DEADLINE_SECONDS`         |       No | `3600`           | execution and recovery | Relative deadline for signed operations, unless the command intentionally overrides it. |
-| `OPERATION_VALUE_ETH`      |       No | `0`              | `execute:set-number`   | ETH value sent with the operation.                                                      |
-| `AUTH_LOOKAHEAD`           |       No | `50`             | `recover`              | Search window for the next unused auth signer.                                          |
-| `RECOVERY_LOOKAHEAD`       |       No | `50`             | `recover`              | Search window for the next available recovery signer.                                   |
 
 ## Initialization flow
 
@@ -340,33 +293,6 @@ flowchart LR
 The SDK owns the critical signing sequence. CLI commands should not call low-level signing helpers directly unless they are explicitly dev-only adversarial tests.
 
 For the wallet internals behind this flow, see [`05-wallet-architecture.md`](./05-wallet-architecture.md).
-
-## Safety notes
-
-This CLI is not safe for production use.
-
-Do not use it with:
-
-* real assets;
-* production EOAs;
-* production mnemonics;
-* valuable private keys;
-* accounts that cannot tolerate state loss.
-
-Local state is security-critical. The JSON state records burned one-time keys and pending signatures. Losing, editing, or rolling back this file can make the wallet unsafe.
-
-A key must be considered burned locally as soon as it signs. The CLI persists local state after signing and before broadcast to preserve this invariant.
-
-Do not sign if sync or reconciliation is unsafe. If local state and on-chain state cannot be reconciled, the wallet must refuse to continue.
-
-Some commands intentionally exercise failure paths. In particular:
-
-* `pnpm execute:target-revert`;
-* `pnpm execute:expired-set-number`;
-* `pnpm execute:invalid-next-auth`.
-
-These commands may produce failed target calls, expired operations, paused accounts, or recovery-required states by design.
-
 
 ## Where to go next
 

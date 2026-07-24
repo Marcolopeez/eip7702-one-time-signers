@@ -14,23 +14,23 @@ The implementation assumes that once a valid ECDSA signature from a signer has b
 
 Its core behavior is:
 
-1. initialize a delegated EOA with a first one-time authorized signer;
+1. initialize a delegated EOA with **the first one-time authorized signer** and **the initial active one-time recovery signers**;
 2. accept signed operations from the current authorized signer;
 3. rotate to a fresh authorized signer before external execution;
-4. preserve rotation even if the target call fails;
+4. **preserve rotation even if the target call fails**;
 5. pause the account when rotation cannot safely proceed;
 6. allow recovery through one-time recovery signers.
 
-The contract stores signer addresses, not raw keys. Each signer address is expected to correspond to a fresh off-chain ECDSA keypair.
+The contract stores **signer addresses**, not raw keys. Each signer address is expected to correspond to a fresh off-chain ECDSA keypair.
 
 ## EIP-7702 execution context
 
-This contract is not intended to be used directly as a normal deployed account. It is intended to be deployed once as an implementation and then executed through an EIP-7702 delegated EOA.
+This contract is intended to be deployed once as an implementation and then executed through an EIP-7702 delegated EOA.
 
 In that delegated execution context:
 
 * `address(this)` is the delegated EOA address.
-* `msg.sender` is the external caller of the delegated EOA, unless the EOA calls itself during setup.
+* `msg.sender` is the external caller of the delegated EOA.
 * storage reads and writes are applied to the delegated EOA storage.
 * ETH balance and outbound calls belong to the delegated EOA.
 * external targets see the delegated EOA as `msg.sender`.
@@ -40,18 +40,24 @@ This is why an operation executed through `executeSignedAndRotate()` calls the t
 The implementation keeps an immutable `IMPLEMENTATION_ADDR = address(this)` set at deployment time. During delegated execution, `address(this)` differs from `IMPLEMENTATION_ADDR`; during direct calls to the implementation, they are equal.
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Uninitialized
+stateDiagram
 
-    Uninitialized --> Active: initialize(firstAuthorizedSigner, recoverySigners)
+  direction TB
 
-    Active --> Active: valid operation / direct rotation\nfresh next authorized signer
-    Active --> Paused: valid authorization observed\nbut next authorized signer invalid
+  [*] --> Uninitialized
 
-    Paused --> Active: recovery installs fresh authorized signer
-    Paused --> Paused: recovery fails before installing signer
+  Uninitialized --> Active:initialize(firstAuthorizedSigner, recoverySigners)
 
-    Active --> Active: recovery may also rotate while unpaused
+  Active --> Paused:valid authorization observed but next authorized signer invalid
+
+  Paused --> Active:recovery installs fresh authorized signer
+  Paused --> Paused:recovery fails before installing signer
+
+  note left of Active 
+      The account remains Active when a valid operation
+      rotates to a fresh signer, or when recovery rotates
+      the signer while the account is unpaused.
+  end note
 ```
 
 ## Storage model
@@ -98,7 +104,7 @@ Conceptual role: `usedKey`.
 
 Actual implementation name: `isConsumedOrReservedSigner`.
 
-This mapping tracks signer addresses that must never become newly authorized again. It is stricter than a simple “used key” mapping because signers are marked as consumed/reserved when they are installed or registered, not only after they are later replaced.
+This mapping **tracks signer addresses that must never become newly authorized again**. It is stricter than a simple “used key” mapping because signers are marked as consumed/reserved when they are installed or registered, not only after they are later replaced.
 
 The mapping is used for both normal authorized signers and recovery signers.
 
@@ -114,18 +120,14 @@ A signer in this mapping cannot be used as a future `nextAuthorizedSigner` or `n
 
 ### `isActiveRecoverySigner`
 
-Conceptual role: `activeRecoverySigner`.
+This mapping tracks **one-time recovery signer addresses** that are currently allowed to recover the account.
 
-Actual implementation name: `isActiveRecoverySigner`.
+A one-time recovery signer:
 
-This mapping tracks recovery signer addresses that are currently allowed to recover the account.
-
-A recovery signer is one-time:
-
-* it is registered as active during initialization or recovery rotation;
-* it is already marked as consumed/reserved when registered;
-* it is deactivated immediately when used for recovery;
-* it cannot be registered again.
+* is registered as active during initialization or recovery rotation;
+* is already marked as consumed/reserved when registered;
+* is deactivated immediately when used for recovery;
+* cannot be registered again.
 
 ## Operations
 
@@ -144,7 +146,7 @@ struct Operation {
 ### Fields
 
 | Field                  | Meaning                                                                |
-| ---------------------- | ---------------------------------------------------------------------- |
+| ------------------------| ------------------------------------------------------------------------|
 | `target`               | Address called by the delegated EOA.                                   |
 | `value`                | ETH value sent from the delegated EOA.                                 |
 | `data`                 | Calldata sent to `target`.                                             |
@@ -180,13 +182,13 @@ Before consuming the signer:
 1. recover the EIP-712 signer;
 2. require the recovered signer to equal `currentAuthorizedSigner`.
 
-If the signer is invalid, the function reverts. The current authorized key is not consumed because the contract has not observed a valid authorization from that key.
+**If the signer is invalid, the function reverts. The current authorized key is not consumed** because the contract has not observed a valid authorization from that key.
 
 After a valid signature is observed:
 
 1. validate `operation.nextAuthorizedSigner`;
-2. rotate to it, or pause if it is invalid;
-3. validate the executable part of the operation;
+2. **rotate** to it, or pause if it is invalid;
+3. validate the executable part of the operation only after rotation;
 4. call the target only if executable validation passes.
 
 Executable validation checks:
@@ -194,7 +196,7 @@ Executable validation checks:
 * `target != address(0)`;
 * `block.timestamp <= deadline`.
 
-These checks intentionally happen after signer rotation. If the operation is expired or has an invalid target, the signer has still produced a valid signature, so the key must still be consumed.
+These checks intentionally happen after signer rotation. **If the operation is expired or has an invalid target, the signer has still produced a valid signature, so the key must still be consumed**.
 
 ### Signer rotation
 
@@ -218,7 +220,7 @@ If the next signer is invalid:
 1. `isPaused` is set to `true`;
 2. `AccountPaused` is emitted;
 3. the function returns `(false, encodedError)`;
-4. no target call is performed.
+4. **no target call is performed**.
 
 ### External execution
 
@@ -230,13 +232,13 @@ operation.target.call{value: operation.value}(operation.data)
 
 The target call result is returned to the caller.
 
-The function does not revert only because the target reverted. Instead, it returns:
+**The function does not revert only because the target reverted**. Instead, it returns:
 
 ```solidity
 (success, result)
 ```
 
-This preserves the signer rotation. Reverting after rotation would roll back the storage update and would allow the exposed signer to remain valid.
+**This preserves the signer rotation**. Reverting after rotation would roll back the storage update and would allow the exposed signer to remain valid.
 
 ```mermaid
 sequenceDiagram
@@ -261,8 +263,8 @@ sequenceDiagram
             Account->>Account: isPaused = true
             Account-->>Relayer: (false, encoded error)
         else valid next signer
-            Account->>Account: Reserve next signer
-            Account->>Account: currentAuthorizedSigner = next signer
+            Account->>Account: isConsumedOrReservedSigner[nextAuthorizedSigner] = true
+            Account->>Account: currentAuthorizedSigner = nextAuthorizedSigner
             Account->>Account: Validate target and deadline
 
             alt invalid executable part
@@ -280,8 +282,8 @@ sequenceDiagram
 
 Recovery can be performed in two ways:
 
-1. direct recovery by an active recovery signer;
-2. EIP-712 signed recovery submitted by any relayer.
+1. **direct recovery** by an active recovery signer;
+2. **EIP-712 signed recovery** submitted by any relayer.
 
 Both paths consume the recovery signer before attempting to install replacement signers.
 
@@ -385,8 +387,6 @@ EIP712Domain({
 
 Under EIP-7702, `address(this)` is the delegated EOA.
 
-This is critical. The verifying contract must be the account address being controlled, not the reusable implementation contract.
-
 Consequences:
 
 * signatures are bound to a specific delegated EOA;
@@ -409,7 +409,7 @@ For normal signed operations, the order is:
 5. validate operation target and deadline;
 6. perform the external call.
 
-The signer that produced the valid signature must not remain usable if anything after signature validation fails.
+The signer that produced the valid signature **must not remain usable if anything after signature validation fails**.
 
 Important detail: the current signer is already marked as consumed/reserved before it signs, because signers are reserved when installed. Rotation does not need to mark the previous signer again. The critical storage update is reserving the next signer and updating `currentAuthorizedSigner` before external execution.
 
@@ -422,11 +422,11 @@ This applies to:
 * zero target;
 * target revert.
 
-Invalid signatures still revert because they do not prove exposure of the current authorized key.
+**Invalid signatures still revert** because they do not prove exposure of the current authorized key.
 
 ## Paused mode
 
-Paused mode is a safety state entered when a valid authorized signer has been observed but the account cannot rotate to a fresh valid signer.
+Paused mode is a **safety state** entered when a valid authorized signer has been observed but the account cannot rotate to a fresh valid signer.
 
 The account pauses when `_rotateAuthorizedSignerOrPause()` receives an invalid `nextAuthorizedSigner`.
 
@@ -435,7 +435,6 @@ Examples:
 * `nextAuthorizedSigner == address(0)`;
 * `nextAuthorizedSigner` was already consumed or reserved;
 * `nextAuthorizedSigner` is the delegated EOA address;
-* `nextAuthorizedSigner` is the current or previous authorized signer;
 * `nextAuthorizedSigner` is a recovery signer already reserved by the account.
 
 While paused:
@@ -462,9 +461,7 @@ This prevents direct use of the deployed implementation contract as if it were a
 Direct implementation use must be prevented because:
 
 * direct calls would write to the implementation contract storage;
-* delegated EOAs are supposed to have isolated storage;
 * initialization of the implementation itself would create misleading global state;
-* `address(this)` would be the implementation address, breaking the intended EIP-712 domain semantics;
 * external calls would originate from the implementation, not from the delegated EOA.
 
 The tests verify that calling `initialize()` directly on the implementation reverts and that initializing a delegated EOA does not modify implementation storage.
@@ -505,7 +502,7 @@ The observed signer remains consumed.
 
 ### 6. Invalid next signer pauses the account
 
-If a valid signer authorizes an operation but the requested next signer is unsafe, the account enters paused mode instead of reverting.
+**If a valid signer authorizes an operation** but the requested next signer is unsafe, the account enters paused mode instead of reverting.
 
 ### 7. Paused mode blocks normal signer flows
 
@@ -545,14 +542,14 @@ forge test
 
 The Foundry suite covers the contract behaviors that define the on-chain state machine:
 
-| Area | Covered behavior |
-| ---- | ---------------- |
-| Initialization | Delegated EOA initialization, implementation-storage isolation, direct implementation protection, invalid initial signers, and double initialization. |
-| Direct authorized rotation | Current-signer authorization, signer-chain progression, previous-signer rejection, and pause on invalid next signer. |
-| Signed execution | Relayed operation submission, EIP-712 validation, delegated-EOA `msg.sender`, ETH transfer, rotation before external calls, replay rejection, target revert handling, expiry handling, zero-target handling, and cross-account signature rejection. |
-| Paused mode | Rejection of normal signed execution and direct authorized rotation while paused; ETH reception remains available. |
-| Direct recovery | Active recovery signer use, recovery signer consumption, unpause behavior, replacement recovery signer registration, and reuse rejection. |
-| Signed recovery | EIP-712 recovery validation, recovery signer consumption, expiry behavior, invalid replacement signer behavior, replay rejection, and delegated-account binding. |
+| Area                       | Covered behavior                                                                                                                                                                                                                                    |
+| ----------------------------| -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Initialization             | Delegated EOA initialization, implementation-storage isolation, direct implementation protection, invalid initial signers, and double initialization.                                                                                               |
+| Direct authorized rotation | Current-signer authorization, signer-chain progression, previous-signer rejection, and pause on invalid next signer.                                                                                                                                |
+| Signed execution           | Relayed operation submission, EIP-712 validation, delegated-EOA `msg.sender`, ETH transfer, rotation before external calls, replay rejection, target revert handling, expiry handling, zero-target handling, and cross-account signature rejection. |
+| Paused mode                | Rejection of normal signed execution and direct authorized rotation while paused; ETH reception remains available.                                                                                                                                  |
+| Direct recovery            | Active recovery signer use, recovery signer consumption, unpause behavior, replacement recovery signer registration, and reuse rejection.                                                                                                           |
+| Signed recovery            | EIP-712 recovery validation, recovery signer consumption, expiry behavior, invalid replacement signer behavior, replay rejection, and delegated-account binding.                                                                                    |
 
 See [`08-testing.md`](./08-testing.md) for the full validation checklist and known testing gaps.
 
@@ -570,11 +567,7 @@ The contract cannot protect against compromise of the EIP-7702 authority key tha
 
 If that authority can replace or clear delegation, it can bypass this contract’s internal signer-rotation rules.
 
-### Signer generation is off-chain
-
-The contract only sees signer addresses.
-
-It cannot verify that a signer address corresponds to a freshly generated one-time keypair, nor can it verify that the wallet securely erased local private key material.
+**The prototype needs a future mechanism such as [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851) to disable that authority.**
 
 ### No generic nonce
 
@@ -614,10 +607,6 @@ This is current implementation behavior and is covered by tests.
 A valid operation can call any non-zero target with arbitrary calldata and ETH value.
 
 The contract does not inspect target behavior beyond returning success or revert data.
-
-### No ERC-4337 EntryPoint integration
-
-This implementation is a minimal delegated EOA account. It does not implement ERC-4337 account validation, paymasters, bundler flows, or EntryPoint-specific interfaces.
 
 ### Local wallet state remains critical
 

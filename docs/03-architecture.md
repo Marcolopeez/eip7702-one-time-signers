@@ -2,7 +2,7 @@
 
 ## Status
 
-This project is an experimental research prototype for an EIP-7702 account controlled by rotating one-time ECDSA signer keys.
+This project is an experimental research prototype for an **EIP-7702 account controlled by rotating one-time ECDSA signer keys**.
 
 It is not audited, not production-ready, and must not be used with real assets.
 
@@ -12,8 +12,8 @@ For the threat model and security invariants, see [`02-threat-model.md`](./02-th
 
 The system has two cooperating state machines:
 
-* an on-chain delegated EOA account implemented by `src/OneTimeSignerAccount.sol`;
-* an off-chain TypeScript wallet that derives signers, signs EIP-712 payloads, burns local key state, broadcasts through a relayer, and reconciles with on-chain storage.
+* an **on-chain delegated EOA account** implemented by `src/OneTimeSignerAccount.sol`;
+* an **off-chain TypeScript wallet** that derives signers, signs EIP-712 payloads, burns local key state, broadcasts through a relayer, and reconciles with on-chain storage.
 
 The delegated account stores signer addresses and lifecycle state. The wallet owns private-key derivation and local key-consumption tracking.
 
@@ -60,10 +60,10 @@ flowchart LR
 
 There are two distinct addresses:
 
-| Address | Role |
-| ------- | ---- |
-| Delegated EOA | Account address users interact with. It owns account storage and ETH balance. |
-| Implementation contract | Reusable `OneTimeSignerAccount.sol` code that the EOA delegates to. |
+| Address                 | Role                                                                          |
+| -------------------------| -------------------------------------------------------------------------------|
+| Delegated EOA           | Account address users interact with. It owns account storage and ETH balance. |
+| Implementation contract | Reusable `OneTimeSignerAccount.sol` code that the EOA delegates to.           |
 
 When the implementation executes through the delegated EOA:
 
@@ -74,9 +74,7 @@ When the implementation executes through the delegated EOA:
 
 The implementation contract is reusable code. It must not be initialized or used directly as an account. `OneTimeSignerAccount.sol` includes a delegated-execution guard that reverts direct calls to state-changing account functions.
 
-Implementation note: the contract cannot protect against compromise of the EIP-7702 authority key that controls delegation at the protocol level. If that key can replace or clear delegation, the contract-level one-time signer rules do not prevent that action.
-
-See [`04-contract.md`](./04-contract.md) for contract-level details.
+Implementation note: the contract cannot protect against compromise of the EIP-7702 authority key that controls delegation at the protocol level. If that key can replace or clear delegation, the contract-level one-time signer rules do not prevent that action. **The prototype needs a future mechanism such as [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851) to disable that authority.**
 
 ## Components
 
@@ -220,7 +218,7 @@ sequenceDiagram
 
 The receipt is not the final source of truth. The final state is whatever `sync()` derives from delegated EOA storage.
 
-This matters because `executeSignedAndRotate()` is designed to preserve signer rotation after valid authorization even when later execution returns failure data, such as an expired operation, zero target, invalid next signer, or target revert.
+This matters because `executeSignedAndRotate()` **is designed to preserve signer rotation after valid authorization even when later execution returns failure data**, such as an expired operation, zero target, invalid next signer, or target revert.
 
 ## Recovery lifecycle
 
@@ -296,36 +294,7 @@ The relayer submits transactions for signed operations and recovery operations. 
 
 The EIP-7702 authority key controls delegation at the protocol level. This is outside the contract’s signer-rotation mechanism.
 
-The prototype assumes a future mechanism such as EIP-7851 to disable that authority; until then, authority-key compromise remains out of scope.
-
-## Experimental and dev-only areas
-
-Reusable but still experimental core:
-
-* `src/OneTimeSignerAccount.sol`;
-* `wallet/src/protocol/one-time-signer-account/*`;
-* `wallet/src/sdk/OneTimeSignerWallet.ts`;
-* `wallet/src/sdk/ports.ts`;
-* `wallet/src/adapters/viem/OneTimeSignerAccountClient.ts`;
-* storage adapter interfaces and implementations.
-
-Prototype product surfaces:
-
-* CLI commands;
-* browser extension UI and background integration;
-* local wallet state import/configuration flows.
-
-Dev-only and test flows:
-
-* `test/mocks/ExecutionTarget.sol`;
-* `script/DeployExecutionTarget.s.sol`;
-* `scripts/run-local-e2e.sh`;
-* `execute:target-revert`;
-* `execute:expired-set-number`;
-* `execute:invalid-next-auth`;
-* `beginUnsafeOperationSigningForPauseTest()`.
-
-The invalid-next-signer path intentionally bypasses normal wallet validation to test contract pause behavior. Normal wallet flows must not use that unsafe transition.
+The prototype assumes a future mechanism such as [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851) to disable that authority; until then, authority-key compromise remains out of scope.
 
 ## Where to go next
 

@@ -16,11 +16,11 @@ The project explores a narrow security objective:
 
 > An ECDSA key that has produced a valid signature must not remain able to control the account.
 
-This does not provide full post-quantum security. The system still uses ECDSA and assumes a partial post-quantum threat model where a CRQC-capable adversary may compromise an ECDSA key after observing a valid signature.
+This does not provide full post-quantum security. The **system still uses ECDSA** and assumes a post-quantum threat model where a CRQC-capable adversary may compromise an ECDSA key after observing a valid signature.
 
-Do not use this project with mainnet assets, valuable testnet assets, production accounts, production mnemonics, or any account that cannot be safely lost.
+Do not use this project with mainnet assets, production accounts, production mnemonics, or any account that cannot be safely lost.
 
-The current implementation is designed for experimentation. It does not include production-grade key custody, encrypted storage, hardened browser-extension boundaries, formal verification, audited recovery UX, or operational safeguards for real deployments.
+The current implementation is designed for experimentation. It does not include production-grade key custody, encrypted storage, hardened browser-extension boundaries, formal verification, audited recovery UX, or operational safeguards for real deployments. Also, **EIP-7702 delegation remains ultimately controlled by the original EOA authority key; the prototype assumes a future mechanism such as [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851) to disable that authority**.
 
 ## In-scope security areas
 
@@ -67,20 +67,18 @@ Examples of useful vulnerability reports:
 
 The following are known limitations of the prototype and are not considered vulnerabilities by themselves:
 
-* the project is not audited;
 * the project is not production-ready;
 * the system does not provide full post-quantum security;
 * the account still relies on ECDSA;
 * compromise of the EIP-7702 authority key is out of scope;
-* replacement, clearing, or malicious modification of the EOA delegation outside this account is out of scope;
-* compromise of the mnemonic, developer machine, local filesystem, browser profile, or build pipeline is out of scope;
-* the current wallet does not provide production-grade secret storage;
+* compromise of the mnemonic;
+* the current wallet does not provide production-grade secret storage yet;
 * browser storage is not treated as secure storage;
 * the browser extension prototype may store development secrets in local extension storage;
 * phishing, malicious UI prompts, or intentionally signing malicious calldata are out of scope;
 * chain reorgs, censorship, transaction non-inclusion, dropped transactions, or general denial of service are out of scope;
-* multi-device coordination is not implemented;
-* production recovery UX is not implemented;
+* multi-device coordination is not implemented yet;
+* production recovery UX is not implemented yet;
 * formal verification is not implemented.
 
 Reports about these areas are still welcome if they show that the implementation violates one of the project’s stated invariants, not merely that the prototype lacks production hardening.
@@ -95,19 +93,7 @@ Private disclosure contact:
 marcolopezg26@gmail.com
 ```
 
-A useful report should include:
-
-* affected component;
-* affected commit, branch, or release;
-* clear impact;
-* reproduction steps;
-* expected behavior;
-* observed behavior;
-* proof of concept, if available;
-* whether the issue can cause signer reuse, unsafe recovery, incorrect EIP-712 binding, unsafe sync, or unauthorized signing.
 
 ## Related documentation
 
 See [`docs/02-threat-model.md`](docs/02-threat-model.md) for the full threat model, core assumptions, security invariants, and known limitations.
-
-This security policy is intentionally brief. It does not duplicate the threat model.

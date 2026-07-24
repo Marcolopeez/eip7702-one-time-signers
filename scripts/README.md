@@ -4,16 +4,16 @@
 
 These scripts are local/dev tooling for the experimental prototype.
 
-They are intended for local EIP-7702 flows, wallet/contract integration validation, and Foundry setup work. They are not production deployment tooling and must not be used with real assets.
+They are intended for local **EIP-7702 flows**, **wallet/contract integration validation**, and **Foundry setup** work. They are not production deployment tooling and must not be used with real assets.
 
 ## Directory roles
 
 This repository has two script directories with different roles:
 
-| Directory  | Purpose                                                                  |
-| ------------| --------------------------------------------------------------------------|
-| `scripts/` | Shell scripts that orchestrate local workflows from the repository root. |
-| `script/`  | Foundry scripts written in Solidity and executed with `forge script`.    |
+| Directory  | Purpose                                                                      |
+| ------------| ------------------------------------------------------------------------------|
+| `scripts/` | **Shell scripts that orchestrate local workflows** from the repository root. |
+| `script/`  | **Foundry scripts** written in Solidity and executed with `forge script`.    |
 
 Use `scripts/` for full local flows.
 
@@ -70,8 +70,6 @@ The script:
     * signed recovery;
     * post-recovery execution.
 13. Writes logs to `.e2e/`.
-
-The script uses deterministic Anvil development keys and deterministic wallet inputs by default. Override the exported environment variables only for local testing scenarios.
 
 ## Foundry scripts
 
@@ -132,10 +130,16 @@ The script:
 
 Under EIP-7702, initialization writes to the delegated EOA storage, not to the implementation contract storage.
 
-## Related documentation
+## Where to go next
 
-Main usage docs:
-
-* [`docs/00-quickstart.md`](../docs/00-quickstart.md)
-* [`docs/08-testing.md`](../docs/08-testing.md)
-* [`docs/06-cli.md`](../docs/06-cli.md)
+* [`../README.md`](../README.md): repository entry point and basic commands.
+* [`README.md`](./README.md): documentation index.
+* [`00-quickstart.md`](./00-quickstart.md): local setup and first run.
+* [`01-overview.md`](01-overview.md): conceptual entry point. 
+* [`02-threat-model.md`](./02-threat-model.md): threat model, assumptions, and security invariants.
+* [`03-architecture.md`](./03-architecture.md): system architecture and trust boundaries.
+* [`04-contract.md`](./04-contract.md): Solidity account behavior.
+* [`05-wallet-architecture.md`](./05-wallet-architecture.md): TypeScript wallet internals, including key derivation.
+* [`06-cli.md`](./06-cli.md): CLI commands and local workflows.
+* [`07-browser-wallet.md`](./07-browser-wallet.md): browser extension prototype.
+* [`08-testing.md`](./08-testing.md): Foundry, Vitest, and local E2E validation.

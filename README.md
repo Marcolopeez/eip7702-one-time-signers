@@ -9,13 +9,12 @@
 
 One-Time Signer Account is an experimental Ethereum account and wallet prototype based on:
 
-* EIP-7702 delegated EOA execution;
+* **EIP-7702** delegated EOA execution;
 * EIP-712 signed operations;
-* one-time ECDSA authorization keys;
-* one-time ECDSA recovery keys;
-* a TypeScript wallet that mirrors the account’s key-consumption rules.
+* **one-time ECDSA authorization keys**;
+* a TypeScript **wallet** that mirrors the account’s key-consumption rules.
 
-The project studies a narrow partial post-quantum threat model: if a CRQC-capable adversary observes a valid ECDSA signature, the corresponding ECDSA key must be treated as exposed.
+The project studies the following **post-quantum threat model: if a CRQC-capable adversary observes a valid ECDSA signature, the corresponding ECDSA key must be treated as exposed**.
 
 This is not full post-quantum security. The system still uses ECDSA.
 
@@ -25,15 +24,14 @@ Ethereum wallets commonly rely on long-lived ECDSA keys. This project explores a
 
 > An ECDSA key that has produced a valid signature must not remain able to control the account.
 
-The prototype asks whether an EOA, using EIP-7702 delegation, can behave like a minimal smart account that rotates its authorized signer after every valid authorization.
+The prototype asks whether an EOA, using EIP-7702 delegation, can behave like a minimal smart account that **rotates its authorized signer after every valid authorization**.
 
-The main security objective is to reduce the window in which an observed ECDSA signature remains useful.
-
+The main security objective is to **reduce the window in which an observed ECDSA signature remains useful.**
 ## Core idea
 
 A one-time signer is an ECDSA keypair intended to authorize exactly one account operation.
 
-A normal operation is signed by the current authorized signer and includes the next authorized signer:
+A normal operation is signed by the current authorized signer and **includes the next authorized signer** (the address):
 
 ```text
 auth[i] signs Operation(
@@ -49,9 +47,11 @@ After the account verifies a valid signature from `auth[i]`, that signer is cons
 
 The contract therefore attempts to rotate to `auth[i+1]` before validating the executable part of the operation and before calling the external target.
 
-If the account cannot rotate to a valid next signer, it enters paused mode. In paused mode, normal execution is blocked and recovery is required.
+If the account cannot rotate to a valid next signer (e.g: `auth[i+1] == address(0)`), it enters paused mode. (Because the current `auth[i]` public key has already being exposed). In paused mode, normal execution is blocked and recovery is required. 
 
 Recovery uses the same principle: recovery signers are also one-time keys.
+
+Once the contract has rotated the authorized signer to `auth[i+1]`, it executes the operation by calling the external target. If the target call reverts, the contract catches the failure and returns the revert data instead of reverting the entire transaction. This ensures that the signer rotation remains committed even when the requested operation fails.
 
 The wallet must follow the corresponding off-chain rule:
 
@@ -59,25 +59,25 @@ The wallet must follow the corresponding off-chain rule:
 sign -> burn locally -> persist -> broadcast
 ```
 
-After a transaction, the final source of truth is on-chain account storage read through `sync()`, not the transaction receipt.
-
 ## How EIP-7702 fits
 
-`src/OneTimeSignerAccount.sol` is designed to be deployed as reusable implementation code and used by an EOA through EIP-7702 delegation.
+`src/OneTimeSignerAccount.sol` is designed to be deployed as reusable implementation code and **used by an EOA through EIP-7702 delegation**.
 
 In the delegated execution context:
 
 ```text
 address(this) = delegated EOA
 storage       = delegated EOA storage
-code          = implementation code
+code          = 0xef0100 || implementation_address 
 ```
 
 This matters for both state and signatures.
 
 Account state is stored in the delegated EOA, not in the implementation contract. 
 
-Implementation note: the account cannot protect against compromise of the EIP-7702 authority key that controls delegation at the protocol level.
+More info about EIP-7702: [Decentralized Security’s EIP-7702 blog post](https://decentralizedsecurity.es/eip-7702-ethereums-next-step-toward-a-more-flexible-account-model).
+
+Implementation note: the account cannot protect against compromise of the EIP-7702 authority key that controls delegation at the protocol level. If that key can be recovered from a set-code authorization, an attacker may be able to replace or clear the delegation outside this contract's control. Thats why **we need ECDSA-key deactivation after EIP-7702 delegation**. More info: [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851)
 
 For the full conceptual model, start with [`docs/01-overview.md`](docs/01-overview.md) and [`docs/02-threat-model.md`](docs/02-threat-model.md).
 
@@ -92,7 +92,8 @@ For the full conceptual model, start with [`docs/01-overview.md`](docs/01-overvi
 │   └── mocks/ExecutionTarget.sol         # Local execution target
 ├── script/                               # Foundry deployment/init scripts
 ├── scripts/
-│   └── run-local-e2e.sh                  # Local end-to-end flow
+│   ├── run-local-e2e.sh                  # Local end-to-end flow
+│   └── README.md
 ├── wallet/                               # TypeScript wallet, SDK, CLI, extension
 │   ├── entrypoints/                      # WXT extension entrypoints
 │   ├── src/
@@ -104,7 +105,8 @@ For the full conceptual model, start with [`docs/01-overview.md`](docs/01-overvi
 │   │   ├── crypto/                       # Deterministic signer derivation and hex helpers
 │   │   ├── protocol/                     # Protocol logic (EIP-712, state, signer selection, sync logic)
 │   │   └── sdk/                          # High-level wallet orchestration
-│   └── test/                             # Vitest tests
+│   ├── test/                             # Vitest tests
+│   └── README.md
 ├── docs/                                 # Project documentation
 ├── SECURITY.md                           # Security policy
 └── README.md
@@ -187,17 +189,9 @@ Implemented prototype components include:
 * CLI commands for initialization, sync, execution, failure scenarios, and recovery;
 * WXT/React browser extension prototype.
 
-Known limitations include:
 
-* no audit;
-* no production hardening;
-* no formal verification;
-* no production-grade key custody;
-* no encrypted browser wallet vault;
-* no multi-device coordination;
-* no production recovery UX;
-* no support for real assets;
-* EIP-7702 delegation remains ultimately controlled by the original EOA authority key; the prototype assumes a future mechanism such as EIP-7851 to disable that authority.
+The current implementation is designed for experimentation. It does not include production-grade key custody, encrypted storage, hardened browser-extension boundaries, formal verification, audited recovery UX, or operational safeguards for real deployments. **Also, EIP-7702 delegation remains ultimately controlled by the original EOA authority key; the prototype assumes a future mechanism such as [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851) to disable that authority.**
+
 
 ## License
 

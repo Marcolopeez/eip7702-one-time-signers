@@ -57,7 +57,7 @@ From the repository root:
 ./scripts/run-local-e2e.sh
 ```
 
-This runs the local end-to-end development flow, including contract deployment, EIP-7702 delegation setup, wallet operations, failure cases, pause, recovery, and post-recovery execution.
+This runs the local end-to-end development flow, including contract deployment, EIP-7702 delegation + initialization, successful wallet operations + auth rotation, failure cases, pause, recovery, and post-recovery execution.
 
 ## Build or run the browser extension
 

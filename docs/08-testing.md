@@ -4,12 +4,10 @@ This project is tested across the contract, wallet protocol logic, SDK state flo
 
 The tests are part of the security model. For this prototype, a valid observed ECDSA signature is treated as key exposure, so tests should focus on whether signer consumption, rotation, pausing, recovery, and wallet reconciliation behave safely under failure.
 
-This project is experimental. Passing tests does not make it production-ready or safe for real assets.
-
 ## Test layers
 
 | Layer                     | Command                      | Location        | Responsibility                                                                                                                 |
-| ------------------------- | ---------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ---------------------------| ------------------------------| -----------------| --------------------------------------------------------------------------------------------------------------------------------|
 | Solidity / Foundry tests  | `forge test`                 | repository root | Contract-level account behavior, EIP-7702 delegated execution, signer rotation, pausing, recovery, EIP-712 binding             |
 | TypeScript / Vitest tests | `pnpm test`                  | `wallet/`       | Wallet protocol logic, EIP-712 client-side hashing/signing, derivation, local state transitions, sync reconciliation, SDK flow |
 | Wallet type checking      | `pnpm typecheck`             | `wallet/`       | Type safety for wallet source and tests under `wallet/src` and `wallet/test`                                                   |
@@ -31,68 +29,23 @@ The Solidity tests live in:
 
 ```text
 test/OneTimeSignerAccountTest.t.sol
-test/mocks/ExecutionTarget.sol
 ```
 
 These tests validate the on-chain account behavior of `src/OneTimeSignerAccount.sol`.
 
 They are responsible for:
 
-* initialization through EIP-7702 delegation;
-* separation between implementation storage and delegated EOA storage;
+* **initialization** through EIP-7702 delegation;
 * protection against direct use of the implementation contract;
-* direct authorized signer rotation;
+* direct authorized **signer rotation**;
 * signed execution through `executeSignedAndRotate`;
 * signer rotation before external target calls;
-* preservation of rotation when target execution fails;
-* paused-mode restrictions;
-* direct recovery through active recovery signers;
-* signed recovery through EIP-712 recovery operations;
+* **preservation of rotation** when target execution fails;
+* **paused-mode** restrictions;
+* **direct recovery** through active recovery signers;
+* **signed recovery** through EIP-712 recovery operations;
 * one-time use of authorized and recovery signers;
-* EIP-712 domain binding to the delegated account.
-
-Especially important tests include:
-
-```text
-test_initialize_setsFirstAuthorizedSignerAndRecoverySignersInDelegatedAccountStorage
-test_initialize_revertsWhenCalledOnImplementation
-test_rotateAuthorizedSigner_burnsPreviousSigner
-test_rotateAuthorizedSigner_pausesWithZeroNextAuthorizedSigner
-test_rotateAuthorizedSigner_pausesWhenReusingPreviousAuthorizedSigner
-test_executeSignedAndRotate_allowsRelayerToSubmitOperationSignedByA2
-test_executeSignedAndRotate_allowsNewKeyToContinueChain
-test_executeSignedAndRotate_rotatesEvenWhenTargetReverts
-test_executeSignedAndRotate_burnsA2SignatureAfterFailedExecution
-test_executeSignedAndRotate_burnsA2SignatureAfterSuccessfulExecution
-test_executeSignedAndRotate_pausesWhenNextAuthorizedSignerIsZero
-test_executeSignedAndRotate_pausesWhenReusingAuthorizedSigner
-test_executeSignedAndRotate_rotatesAndReturnsFailureWhenOperationExpired
-test_executeSignedAndRotate_rotatesAndReturnsFailureWithZeroTarget
-test_executeSignedAndRotate_rejectsSignatureBoundToAnotherDelegatedAccount
-test_pausedAccount_revertsNormalSignedExecution
-test_pausedAccount_revertsDirectAuthorizedRotation
-test_rotateAuthorizedSignerThroughRecovery_unpausesPausedAccountAndRotatesRecoverySigner
-test_rotateAuthorizedSignerThroughRecovery_cannotReuseConsumedRecoverySigner
-test_rotateAuthorizedSignerThroughRecovery_newRecoverySignerCanRecoverAgain
-test_signedRecovery_unpausesPausedAccountAndRotatesRecoverySigner
-test_signedRecovery_consumesRecoverySignerWhenOperationExpired
-test_signedRecovery_consumesRecoverySignerEvenWhenNextSignerIsInvalid
-test_signedRecovery_replayFailsBecauseRecoverySignerWasConsumed
-test_signedRecovery_rejectsSignatureBoundToAnotherDelegatedAccount
-```
-
-Run `forge test` whenever you touch:
-
-* `src/OneTimeSignerAccount.sol`;
-* contract storage layout;
-* signer validation logic;
-* `Operation` or `RecoveryOperation`;
-* EIP-712 hashing or domain logic;
-* pause or recovery behavior;
-* deployment or initialization scripts that affect delegated account setup;
-* tests or mocks under `test/`.
-
-Also run it before relying on wallet-side protocol changes that must remain compatible with the contract.
+* **EIP-712 domain** binding to the delegated account.
 
 ## Wallet tests
 
@@ -129,7 +82,7 @@ It checks that:
 * delegated account and chain ID affect auth derivation;
 * invalid derivation indices are rejected.
 
-Implementation note: the current tests explicitly assert that changing `walletId` does not change the recovery stream. Preserve or update this test intentionally if the derivation design changes.
+Implementation note: the current tests explicitly assert that changing `walletId` does not change the recovery stream. 
 
 ### `eip712.test.ts`
 
@@ -145,8 +98,6 @@ It checks that:
 * recovery operation signatures recover the expected recovery signer;
 * operation digests change when `nextAuthorizedSigner`, calldata, chain ID, or delegated account changes;
 * recovery digests change when `nextAuthorizedSigner` or `nextRecoverySigner` changes.
-
-These tests are important because the contract expects signatures to be bound to the delegated EOA, not to the implementation contract.
 
 ### `state.test.ts`
 
@@ -168,8 +119,6 @@ It checks that:
 * failed recovery can remain `PAUSED`;
 * JSON state can be saved and loaded.
 
-These tests are critical for the wallet-side invariant that local state must be persisted immediately after signing and before transaction broadcast.
-
 ### `sync.test.ts`
 
 Covers reconciliation between local state and on-chain storage.
@@ -189,8 +138,6 @@ It checks that:
 * critical partial recovery throws;
 * uninitialized on-chain accounts throw.
 
-These tests are the main guardrail for the rule that the receipt is not the final source of truth. The wallet must reconcile against on-chain storage before considering itself safe to continue.
-
 ### `OneTimeSignerWallet.test.ts`
 
 Covers the SDK-level flow using a fake account client.
@@ -203,17 +150,6 @@ It checks that:
 * recovery rotates both auth and recovery streams in the local state.
 
 This test is especially important for validating call ordering: sign, persist pending state, submit transaction, wait, sync from chain.
-
-Run `pnpm test` whenever you touch:
-
-* `wallet/src/protocol/one-time-signer-account/*`;
-* `wallet/src/sdk/*`;
-* signer derivation;
-* EIP-712 signing or hashing;
-* local state transitions;
-* sync/reconciliation logic;
-* storage adapters;
-* CLI commands that depend on wallet protocol state.
 
 ## Type checking
 
@@ -238,15 +174,6 @@ wallet/test
 
 It excludes extension entrypoints, WXT output, build output, and `node_modules`.
 
-Run `pnpm typecheck` whenever you touch TypeScript under:
-
-```text
-wallet/src
-wallet/test
-```
-
-Also run it before treating wallet changes as locally validated, even if the Vitest tests pass.
-
 ## Browser extension build checks
 
 Run from `wallet/`:
@@ -269,17 +196,6 @@ wallet/entrypoints
 wallet/wxt.config.ts
 ```
 
-Run it whenever you touch:
-
-* extension entrypoints;
-* popup UI;
-* options UI;
-* background logic;
-* extension messaging types;
-* browser storage integration;
-* WXT config;
-* shared wallet code used by the extension.
-
 Also run the extension build from `wallet/`:
 
 ```bash
@@ -287,16 +203,6 @@ pnpm extension:build
 ```
 
 This verifies that WXT can build the extension package.
-
-Run `pnpm extension:build` whenever you touch:
-
-* `wallet/entrypoints/*`;
-* `wallet/src/apps/extension/*`;
-* `wallet/wxt.config.ts`;
-* extension assets or manifest-related settings;
-* shared wallet code that is imported by the extension.
-
-Implementation note: `pnpm typecheck:extension` validates TypeScript compatibility with the extension project. `pnpm extension:build` validates the bundling/build path. Use both for extension changes.
 
 ## Local e2e script
 
@@ -346,24 +252,18 @@ Logs are written to:
 .e2e/
 ```
 
-Run `./scripts/run-local-e2e.sh` before treating changes as safe when they affect the integrated flow between contracts, scripts, wallet protocol logic, CLI commands, or local storage.
-
-Also run it after coordinated changes across Solidity and TypeScript, even if `forge test` and `pnpm test` pass independently.
-
 ## Security invariant coverage
 
-| Invariant                                                                                                 | Current coverage                                                                                                                                                                                                                                                          |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An ECDSA key that has signed must not control the account again.                                          | Covered by Foundry tests for direct rotation, signed execution replay after success/failure, and recovery signer replay. Covered wallet-side by local state tests that burn auth/recovery indices immediately after signing.                                              |
-| No failure after a valid signature must revert the already-applied rotation.                              | Covered by Foundry tests for target revert, expired operations, and zero target after valid authorization. Covered e2e by target revert and expired operation flows.                                                                                                      |
-| If the account cannot rotate to a valid key, it must enter paused mode.                                   | Covered by Foundry tests for zero/reused next authorized signers in direct and signed rotation. Covered e2e by the invalid next signer flow.                                                                                                                              |
-| In paused mode, only recovery must be able to restore the account.                                        | Covered by Foundry tests that reject normal signed execution and direct authorized rotation while paused, plus recovery tests that unpause. ETH receive while paused is also tested.                                                                                      |
-| Recovery keys are also one-time keys.                                                                     | Covered by Foundry direct recovery and signed recovery tests that consume recovery signers, reject reuse, and allow newly registered recovery signers to recover again. Covered wallet-side by recovery state tests that burn recovery indices immediately after signing. |
-| Any observed signature is equivalent to key exposure in the CRQC threat model.                            | Represented by tests that consume auth and recovery signers after valid signatures, including failure paths. The tests validate the implementation policy, not the cryptographic CRQC assumption itself.                                                                  |
-| EIP-712 `verifyingContract` must be the delegated EOA, not the implementation contract.                   | Covered by TypeScript EIP-712 domain tests and digest-change tests. Covered on-chain by Foundry tests rejecting signatures bound to another delegated account.                                                                                                            |
-| The wallet must persist local state immediately after signing and before broadcast.                       | Covered by `state.test.ts` and SDK tests that assert pending state exists before final sync. This is unit-level coverage; crash recovery across process termination should be treated carefully when changing storage behavior.                                           |
-| The final source of truth after a transaction is on-chain storage read through `sync()`, not the receipt. | Covered by sync reconciliation tests and SDK tests that perform final sync after receipt. The e2e script also reads on-chain storage after each important step.                                                                                                           |
-| If local state and on-chain state cannot be safely reconciled, the wallet must refuse to sign.            | Partially covered by sync tests that throw on signer mismatch, uninitialized account, and critical partial recovery. SDK tests cover refusing execution while paused. Add targeted tests for any new ambiguous reconciliation state.                                      |
+| Invariant                                                                                                     | Current coverage                                                                                                                                                                                                                                                                  |     |
+| ---------------------------------------------------------------------------------------------------------------| -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| -----|
+| **An ECDSA key that has signed must not control the account again**.                                          | Covered by **Foundry tests** for direct rotation, signed execution replay after success/failure, and recovery signer replay. Covered **wallet-side** by local state tests that burn auth/recovery indices immediately after signing.                                              |     |
+| **No failure after a valid signature must revert the already-applied rotation**.                              | Covered by **Foundry tests** for target revert, expired operations, and zero target after valid authorization. Covered e2e by target revert and expired operation flows.                                                                                                          |     |
+| **If the account cannot rotate to a valid key, it must enter paused mode**.                                   | Covered by **Foundry tests** for zero/reused next authorized signers in direct and signed rotation. Covered e2e by the invalid next signer flow.                                                                                                                                  |     |
+| **In paused mode, only recovery must be able to restore the account**.                                        | Covered by **Foundry tests** that reject normal signed execution and direct authorized rotation while paused, plus **recovery tests** that unpause. ETH receive while paused is also tested.                                                                                      |     |
+| **Recovery keys are also one-time keys**.                                                                     | Covered by **Foundry** direct recovery and signed recovery **tests** that consume recovery signers, reject reuse, and allow newly registered recovery signers to recover again. Covered wallet-side by recovery state tests that burn recovery indices immediately after signing. |     |
+| **The wallet must persist local state immediately after signing and before broadcast**.                       | Covered by `state.test.ts` and **SDK tests** that assert pending state exists before final sync. This is unit-level coverage; crash recovery across process termination should be treated carefully when changing storage behavior.                                               |     |
+| **The final source of truth after a transaction is on-chain storage read through `sync()`, not the receipt**. | Covered by sync **reconciliation tests** and **SDK tests** that perform final sync after receipt. The e2e script also reads on-chain storage after each important step.                                                                                                           |     |
+| **If local state and on-chain state cannot be safely reconciled, the wallet must refuse to sign**.            | Partially covered by **sync tests** that throw on signer mismatch, uninitialized account, and critical partial recovery. **SDK tests** cover refusing execution while paused. Add targeted tests for any new ambiguous reconciliation state.                                      |     |
 
 ## When to run what
 
@@ -390,7 +290,7 @@ pnpm test
 pnpm typecheck
 ```
 
-Also run `forge test` if the change must remain compatible with the contract, especially for EIP-712, signer selection, recovery, or sync assumptions.
+Also run the local e2e script if the change must remain compatible with the contract, especially for EIP-712, signer selection, recovery, or sync assumptions.
 
 ### Extension change
 
@@ -466,25 +366,10 @@ For new protocol behavior, test at least:
 5. how local wallet state is persisted before broadcast;
 6. how `sync()` reconciles the final on-chain state.
 
-When adding a test for a bug, assert the security invariant directly. Avoid tests that only check that a function returns without throwing.
-
-Good test names should make the invariant visible, for example:
-
-```text
-test_executeSignedAndRotate_rotatesEvenWhenTargetReverts
-test_signedRecovery_replayFailsBecauseRecoverySignerWasConsumed
-```
-
 ## Known gaps
 
-* The attached files do not include CI configuration.
-* The test suite does not prove production safety.
-* The CRQC threat assumption is modeled as a signer-consumption policy; the tests do not validate cryptographic breakability.
 * Wallet persistence is tested at the local state and JSON store level, but crash consistency across browser/runtime interruption should be reviewed carefully when storage behavior changes.
-* Browser extension checks cover type checking and buildability. They do not appear to include browser automation or UI interaction tests.
-* The e2e script uses deterministic local Anvil development keys and must not be used with real assets.
-* Recovery and reconciliation have targeted tests for critical states, but any new partial-recovery or ambiguous sync state should get explicit tests before being relied on.
-
+* Browser extension checks cover type checking and buildability. They do not include browser automation or UI interaction tests.
 
 ## Where to go next
 

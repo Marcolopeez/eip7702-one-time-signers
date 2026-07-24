@@ -6,7 +6,7 @@ The browser wallet is an experimental local-development prototype for the One-Ti
 
 It is not production-ready. It must not be used with real assets, real mnemonics, production RPC endpoints, or accounts that hold value.
 
-The extension currently stores sensitive configuration in browser extension local storage. This includes the mnemonic and relayer private key. There is no encrypted vault, unlock flow, password-based key protection, origin isolation model, or production-grade wallet UX.
+The extension currently **stores sensitive configuration in browser extension local storage**. This includes the **mnemonic** and **relayer private key**. There is no encrypted vault, unlock flow, password-based key protection, origin isolation model, or production-grade wallet UX.
 
 Use it only with local Anvil/test deployments.
 
@@ -30,8 +30,6 @@ The security-sensitive signing sequence remains centralized in the SDK:
 ```text
 sync -> derive -> sign -> burn locally -> persist -> broadcast -> sync
 ```
-
-UI code must not call low-level EIP-712 signing helpers directly.
 
 ## Current capabilities
 
@@ -77,40 +75,6 @@ The extension is configured for local RPC hosts only:
 http://127.0.0.1/*
 http://localhost/*
 ```
-
-## Non-goals and limitations
-
-The browser wallet does not currently support:
-
-* real funds;
-* production use;
-* encrypted mnemonic storage;
-* password-based unlock or lock lifecycle;
-* seed generation;
-* account creation from the extension UI;
-* EIP-7702 delegation setup from the extension UI;
-* implementation deployment;
-* arbitrary contract calls;
-* arbitrary transaction construction;
-* arbitrary `eth_sendTransaction`;
-* `eth_sign`;
-* `personal_sign`;
-* typed-data signing for external callers;
-* injected provider support;
-* `window.ethereum`;
-* generic dapp compatibility;
-* wallet connection flows;
-* origin-based request permissions;
-* user confirmation screens for external sites;
-* multi-account support;
-* multi-network account management;
-* multi-device synchronization;
-* transaction replacement handling;
-* robust pending-transaction recovery UX;
-* production-grade secret handling.
-
-The only operation exposed by the current UI is the demo `ExecutionTarget.setNumber(uint256)` call.
-
 ## Extension structure
 
 ### WXT configuration
@@ -412,21 +376,6 @@ wxt.config.ts
 
 and uses strict TypeScript settings.
 
-## State storage and synchronization
-
-The extension uses `BrowserWalletStateStore` for `LocalWalletState`. This state is security-sensitive because it records burned signer indices and pending signatures.
-
-Settings and wallet state are stored separately:
-
-| Data | Storage key | Notes |
-| ---- | ----------- | ----- |
-| Extension settings | `one-time-signer-wallet:settings` | Includes local-development configuration such as mnemonic, RPC URL, relayer private key, and optional execution target. |
-| Wallet state | `one-time-signer-wallet:state` | Contains `LocalWalletState` used by the SDK. |
-
-The SDK still owns the signing and persistence sequence. The UI sends high-level requests to the background script; it does not derive signer private keys or call low-level signing helpers directly.
-
-For the full wallet-side state machine and sync rules, see [`05-wallet-architecture.md`](./05-wallet-architecture.md).
-
 ## Security notes
 
 This extension is a prototype. The browser storage model is not sufficient for production key custody.
@@ -446,23 +395,6 @@ Current security limitations include:
 * no dapp origin permission model;
 * no injected-provider isolation boundary.
 
-The most important wallet-side invariant is:
-
-```text
-Producing a valid signature consumes the corresponding local key immediately.
-```
-
-This applies even if:
-
-* the transaction is never broadcast;
-* the transaction is dropped;
-* the transaction reverts;
-* the receipt status is misleading for wallet state;
-* the browser closes after signing;
-* the account later needs recovery.
-
-Losing local state after signing is dangerous. The wallet may no longer know which derived keys have already produced signatures. A production design must provide a robust state durability, backup, and reconciliation strategy before this model can be used with real assets.
-
 Known open questions:
 
 * How should a production extension encrypt and unlock the mnemonic?
@@ -472,18 +404,6 @@ Known open questions:
 * What should the dapp-facing API look like, if this ever becomes more than a local prototype?
 * How should arbitrary transaction requests be reviewed and constrained?
 * How should extension permissions be reduced or hardened for non-local networks?
-* How should the project separate dev-only demo operations from any future wallet UX?
-
-## Related documentation
-
-* [Project README](../README.md)
-* [Docs index](./README.md)
-* [Wallet architecture](./05-wallet-architecture.md)
-* [CLI documentation](./06-cli.md)
-* [Quickstart](./00-quickstart.md)
-* [Threat model](./02-threat-model.md)
-* [Contract documentation](./04-contract.md)
-
 
 ## Where to go next
 

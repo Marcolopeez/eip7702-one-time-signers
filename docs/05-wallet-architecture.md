@@ -2,7 +2,7 @@
 
 ## Status
 
-The TypeScript wallet is an experimental research prototype for `OneTimeSignerAccount`.
+The **TypeScript wallet** is an experimental research prototype for `OneTimeSignerAccount`.
 
 It is not production-ready. Do not use it with real assets, real mnemonics, or production relayer keys.
 
@@ -22,19 +22,19 @@ Once a valid ECDSA signature is produced, the corresponding key must never be us
 
 ## Purpose
 
-The TypeScript wallet is the off-chain state machine for the delegated EIP-7702 account.
+The TypeScript wallet is the **off-chain state machine for the delegated EIP-7702 account**.
 
 It is responsible for:
 
-1. deriving deterministic one-time ECDSA signers;
-2. selecting a fresh next signer before signing;
-3. constructing the exact EIP-712 payload expected by `OneTimeSignerAccount.sol`;
-4. signing operations and recovery operations;
+1. **deriving deterministic one-time ECDSA keys**;
+2. **selecting a fresh next signer** before signing;
+3. constructing the exact **EIP-712** payload expected by `OneTimeSignerAccount.sol`;
+4. **signing** operations and recovery operations;
 5. burning the signing key locally immediately after signing;
 6. persisting the burned/pending state before broadcasting;
 7. submitting signed payloads through a relayer;
 8. reading delegated-account storage after a transaction;
-9. reconciling local state with on-chain state;
+9. **reconciling** local state with on-chain state;
 10. refusing to sign if reconciliation is unsafe.
 
 The wallet is not a general-purpose injected Ethereum wallet. It is a developer-oriented implementation for the one-time signer account experiment.
@@ -96,16 +96,16 @@ flowchart TD
 
 ### `protocol/one-time-signer-account`
 
-Pure account protocol logic.
+Pure **account protocol logic**.
 
 This layer contains:
 
-* account operation types;
-* EIP-712 domain and typed-data builders;
-* low-level signing helpers;
+* **account operation types**;
+* **EIP-712** domain and typed-data builders;
+* low-level **signing helpers**;
 * signer selection helpers;
-* local wallet state transitions;
-* local/on-chain reconciliation rules.
+* local wallet **state transitions**;
+* local/on-chain **reconciliation** rules.
 
 It does not perform RPC calls and does not know where state is stored.
 
@@ -113,13 +113,13 @@ It does not perform RPC calls and does not know where state is stored.
 
 High-level wallet orchestration.
 
-`OneTimeSignerWallet` is the main SDK boundary used by the CLI and browser extension. It centralizes the safety-critical sequence:
+`OneTimeSignerWallet` is the main SDK boundary used by the CLI and browser extension. It **centralizes the safety-critical sequence**:
 
 ```text
 sync -> derive -> select next signer -> sign -> burn locally -> persist -> broadcast -> wait -> sync
 ```
 
-UI code should call the SDK instead of calling low-level signing helpers directly.
+**UI code should call the SDK** instead of calling low-level signing helpers directly.
 
 ### `ports`
 
@@ -157,9 +157,9 @@ RPC and transaction adapter for the delegated account.
 
 It uses viem to:
 
-* read delegated-account storage;
+* **read** delegated-account storage;
 * check whether signers are consumed, reserved, or active recovery signers;
-* submit `executeSignedAndRotate`;
+* **submit** `executeSignedAndRotate`;
 * submit `signedRecovery`;
 * wait for transaction receipts.
 
@@ -167,7 +167,7 @@ The relayer private key pays gas. It is not the one-time auth or recovery signer
 
 ### `crypto`
 
-Deterministic signer derivation and hex utilities.
+**Deterministic signer derivation** and **hex utilities**.
 
 This layer derives independent signer streams:
 
@@ -180,7 +180,7 @@ The returned private keys should only be used by the signing flow and must be tr
 
 ### `contracts`
 
-TypeScript ABI files for contracts used by the wallet:
+TypeScript **ABI files** for contracts used by the wallet:
 
 * `OneTimeSignerAccount.abi.ts`
 * `ExecutionTarget.abi.ts`
@@ -203,16 +203,16 @@ The popup does not directly derive private keys or call low-level signing helper
 
 ## Key derivation
 
-This section is the primary documentation owner for wallet-side signer derivation.
+This section is about wallet-side signer derivation.
 
-`wallet/src/crypto/derivation.ts` derives two deterministic one-time ECDSA signer streams:
+`wallet/src/crypto/derivation.ts` derives **two deterministic one-time ECDSA signer streams**:
 
 ```text
 auth[i]      signer for normal account operations
 recovery[i]  signer for recovery operations
 ```
 
-The derivation design is part of the wallet security model, but it is not post-quantum cryptography. It still derives ECDSA keys. Its purpose is to avoid accidental signer reuse across streams, accounts, chains, implementations, and wallet installations.
+The derivation design is part of the wallet security model, but **it is not post-quantum cryptography. It still derives ECDSA keys**. Its purpose is to avoid accidental signer reuse across streams, accounts, chains, implementations, and wallet installations.
 
 ### Derivation inputs
 
@@ -237,18 +237,18 @@ auth      normal operation authorization
 recovery  recovery authorization
 ```
 
-The `auth` stream is bound to `walletId`, which represents a specific wallet installation.
+**The `auth` stream is bound to `walletId`**, which represents a specific wallet installation.
 
-The `recovery` stream is not bound to `walletId`. It can be reconstructed from mnemonic and passphrase if the installation state, including `walletId`, is lost.
+**The `recovery` stream is not bound to `walletId`**. It can be reconstructed from mnemonic and passphrase if the installation state, including `walletId`, is lost.
 
-This asymmetry is intentional:
+This **asymmetry** is intentional:
 
 * auth signing is installation-bound to reduce accidental stream reuse across wallet instances;
 * recovery remains reconstructible so a lost installation can recover into a new auth stream.
 
 ### Implemented path format
 
-The implemented path format is hardened-only:
+The implemented path format is **hardened-only**:
 
 ```text
 auth[i]      m / 7702' / 60' / accountIndex' / 0' / i'
@@ -536,7 +536,7 @@ in `browser.storage.local`.
 
 It only stores the wallet state. Extension settings are stored separately by the extension config layer.
 
-Browser storage must not be treated as secure storage. In the current prototype, the extension also stores development settings such as mnemonic, RPC URL, and relayer key in extension local storage. This is acceptable only for local development with test secrets.
+Browser storage must not be treated as secure storage. **In the current prototype, the extension also stores development settings such as mnemonic, RPC URL, and relayer key in extension local storage. This is acceptable only for local development with test secrets**.
 
 ## viem adapter
 
@@ -737,50 +737,6 @@ The CLI and browser extension reuse the same SDK and protocol state machine. The
 
 Both surfaces should call `OneTimeSignerWallet` for safety-critical flows. They should not call low-level signing helpers directly unless the flow is explicitly dev-only and documented as unsafe.
 
-## Security-sensitive areas
-
-### EIP-712 verifying contract
-
-The EIP-712 `verifyingContract` must be the delegated EOA address.
-
-Do not use the implementation contract address as the verifying contract.
-
-### Local burned-key state
-
-`burnedAuthIndices` and `burnedRecoveryIndices` prevent accidental key reuse after signing.
-
-Losing or corrupting local state can make the wallet unsafe. If the wallet cannot reconcile local and on-chain state, it must stop signing.
-
-### Sign-before-broadcast boundary
-
-The key is considered consumed when the signature is produced, not when a transaction is mined.
-
-The SDK must persist the pending state before broadcast.
-
-### Recovery signer handling
-
-Recovery signers are also one-time keys.
-
-A failed recovery may still consume the recovery signer. The wallet models this by returning from `PENDING_RECOVERY` to `PAUSED` while keeping the recovery index burned.
-
-### Browser storage
-
-The current extension stores prototype data in `browser.storage.local`.
-
-Do not claim or assume this is secure. Production hardening would require a dedicated secret-storage and unlock design, stricter message validation, user confirmations, and a full extension privilege-boundary review.
-
-### Low-level signing helpers
-
-`signOperation()` and `signRecoveryOperation()` do not update local state.
-
-They are useful for tests and dev scripts, but production-like flows must go through `OneTimeSignerWallet`.
-
-### Dev-only unsafe transition
-
-`beginUnsafeOperationSigningForPauseTest()` exists only to test the contract pause path for invalid `nextAuthorizedSigner`.
-
-Normal wallet flows must never use it.
-
 ## Test coverage
 
 Wallet logic is covered by Vitest tests under:
@@ -797,16 +753,15 @@ See [`08-testing.md`](./08-testing.md) for the testing checklist, command matrix
 
 ## Known limitations
 
-* The wallet is experimental and not production-ready.
+* The wallet is **experimental** and not production-ready.
 * The browser extension stores development secrets in local extension storage.
-* There is no production unlock lifecycle or encrypted secret store.
+* There is no production encrypted secret store.
 * There is no generic injected provider interface.
 * The extension currently exposes a narrow demo flow around `ExecutionTarget.setNumber`.
 * Multi-device active signing is out of scope. Two devices sharing the same mnemonic and wallet ID could attempt to use the same current auth key.
 * The signer lookahead window is bounded. If local state is wrong or many signers are skipped, signer selection can fail.
 * Low-level signing helpers can be misused if called without the state machine.
 * Recovery is intentionally restricted to locally/on-chain reconciled `PAUSED` state.
-* The package script for `sign:demo` should be checked: `package.json` references `sign-Demo.ts`, while the repository tree contains `signDemo.ts`.
 
 
 ## Where to go next

@@ -4,15 +4,15 @@
 
 This project is an experimental research prototype.
 
-It is not production-ready, has not been audited for production use, and must not be used with real assets. The model described here is intentionally narrow: it explores a partial post-quantum threat model for ECDSA-based accounts using EIP-7702 and one-time signer keys.
+It is not production-ready, has not been audited for production use, and must not be used with real assets. The model described here explores a post-quantum threat model for ECDSA-based accounts, using EIP-7702 and one-time signer keys.
 
 ## Core assumption
 
 The project assumes a CRQC-capable adversary may be able to break ECDSA after observing a valid ECDSA signature from a key.
 
-In this model, a valid observed signature is treated as exposure of the corresponding ECDSA key. It does not matter whether the transaction succeeds, reverts at the target, expires, or is only partially applied. Once the signature exists outside the wallet, the key must be considered unsafe.
+In this model, **a valid observed signature is treated as exposure of the corresponding ECDSA key**. It does not matter whether the transaction succeeds, reverts at the target, expires, or is only partially applied. Once the signature exists outside the wallet, the key must be considered unsafe.
 
-This is not full post-quantum security. The account still uses ECDSA. The goal is narrower: reduce the time window in which an observed ECDSA signature remains useful.
+This is not full post-quantum security. The account still uses ECDSA. **The goal is to reduce the time window in which an observed ECDSA signature remains useful**.
 
 ## Security objective
 
@@ -50,7 +50,7 @@ The prototype has two cooperating parts:
   * syncs local state against on-chain account storage;
   * refuses to sign when local and on-chain state cannot be reconciled safely.
 
-The contract stores signer addresses, not raw private keys. Each signer address is expected to correspond to a fresh one-time ECDSA keypair managed by the wallet.
+**The contract stores signer addresses, not raw public keys**. Each signer address is expected to correspond to a fresh one-time ECDSA keypair managed by the wallet.
 
 ## Attacker capabilities
 
@@ -60,7 +60,7 @@ The threat model assumes an attacker may be able to:
 * use CRQC capabilities to recover the ECDSA key after observing a valid signature;
 * replay previously observed signatures;
 * submit signed operations as an untrusted relayer;
-* delay, drop, reorder, or front-run submitted transactions;
+* delay or front-run submitted transactions;
 * call public account functions directly when they have a valid signature or control the expected signer;
 * provide malicious targets that revert, return arbitrary data, or attempt reentrant behavior;
 
@@ -70,15 +70,14 @@ The design assumes attackers can observe signatures. It does not rely on signatu
 
 This prototype does not protect against:
 
-* compromise of the EIP-7702 authority key that controls delegation at protocol level;
+* compromise of the EIP-7702 authority key that controls delegation at protocol level; (we still need [EIP-7851](https://eips.ethereum.org/EIPS/eip-7851))
 * replacement, clearing, or malicious modification of the EOA delegation outside this contract’s control;
-* compromise of the mnemonic, browser extension, local storage, build pipeline, or developer machine;
+* compromise of the mnemonic, local storage, build pipeline, or developer machine;
 * malicious wallet UI behavior or phishing;
 * unsafe target contract logic;
 * loss of funds caused by intentionally signing malicious calldata;
 * chain reorgs, censorship, transaction non-inclusion, or denial of service;
 * full post-quantum security;
-* production-grade key custody, backups, or recovery UX;
 
 Implementation note: the Solidity account explicitly documents that it cannot protect against compromise of the EIP-7702 authority key. That limitation is central to the threat model.
 
@@ -88,14 +87,12 @@ The normal authorization stream uses `currentAuthorizedSigner`.
 
 A valid operation must be signed by the current authorized signer. After the signature is verified, the account attempts to rotate to `operation.nextAuthorizedSigner` before validating the executable part of the operation and before calling the external target.
 
-This order is intentional:
-
 1. verify signature;
 2. consume the current signer by rotating to the next signer;
 3. validate operation fields such as target and deadline;
 4. call the external target.
 
-The current signer is considered exposed as soon as the signature is valid. Therefore, failures after signature verification must not roll back signer consumption.
+The current signer is considered exposed as soon as the signature is valid. Therefore, **failures after signature verification must not roll back signer consumption**.
 
 A signer cannot be reused if it is already marked in `isConsumedOrReservedSigner`.
 
@@ -112,7 +109,7 @@ A valid recovery operation installs:
 
 The recovery signer is consumed as soon as a valid recovery signature is observed. This happens before checking whether the recovery operation is expired or whether the requested replacement signers are valid.
 
-Recovery keys follow the same CRQC rule as normal auth keys:
+Recovery keys follow the same rule as normal auth keys:
 
 > If a recovery key signs once, it must not be usable again.
 
@@ -132,8 +129,6 @@ Under EIP-7702:
 * storage belongs to the delegated EOA;
 * the implementation contract only provides code;
 * the EOA behaves as a minimal smart account.
-
-The implementation contract protects against direct use by checking that execution is happening through delegation. Direct calls to the implementation contract must not initialize or mutate implementation storage.
 
 EIP-712 signatures are bound to the delegated EOA, not to the implementation contract.
 
