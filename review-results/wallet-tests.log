@@ -1,0 +1,39 @@
+
+⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯
+Error: Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+    at file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:507:36
+    at file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:9:49
+    at file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/parse-Bg2pr2Q5.mjs:3:46
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async start (file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/vitest@4.1.8_@types+node@25.9.2_vite@8.0.16_@types+node@25.9.2_esbuild@0.27.7_jiti@2.7.0_tsx@4.22.4_/node_modules/vitest/dist/chunks/cac.C9xsMMkH.js:2339:27)
+    at async CAC.run (file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/vitest@4.1.8_@types+node@25.9.2_vite@8.0.16_@types+node@25.9.2_esbuild@0.27.7_jiti@2.7.0_tsx@4.22.4_/node_modules/vitest/dist/chunks/cac.C9xsMMkH.js:2318:2) {
+  [cause]: Error: Cannot find module '@rolldown/binding-darwin-arm64'
+  Require stack:
+  - /Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+      ... 6 lines matching cause stack trace ...
+      at require (node:internal/modules/helpers:157:16)
+      at requireNative (file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:219:22)
+      at file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:475:18 {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [
+      '/Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs'
+    ],
+    cause: Error: Cannot find module './rolldown-binding.darwin-arm64.node'
+    Require stack:
+    - /Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs
+        at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+        ... 6 lines matching cause stack trace ...
+        at require (node:internal/modules/helpers:157:16)
+        at requireNative (file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:214:13)
+        at file:///Users/marco/Documents/ChatGPT/S&P/prototype-review/wallet/node_modules/.pnpm/rolldown@1.0.3/node_modules/rolldown/dist/shared/binding-CXquf8ay.mjs:475:18 {
+      code: 'MODULE_NOT_FOUND',
+      requireStack: [Array],
+      cause: [Error]
+    }
+  }
+}
+
+
+
