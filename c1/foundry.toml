@@ -1,0 +1,15 @@
+# OTS-C1 (rama research/c1, D-47). Proyecto aparte dentro de c1/: reutiliza ../lib y no toca la configuración
+# de la raíz. Uso: forge test --root c1 (desde ots/) o forge test (desde ots/c1/).
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+cache_path = "cache"
+libs = ["../lib"]
+solc_version = "0.8.30"
+evm_version = "prague"
+remappings = [
+  "@openzeppelin/contracts/=../lib/openzeppelin-contracts/contracts/",
+  "forge-std/=../lib/forge-std/src/",
+]
