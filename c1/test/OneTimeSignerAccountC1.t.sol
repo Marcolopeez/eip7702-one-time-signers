@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-import {OneTimeSignerAccountC1 as OTSC1} from "../src/OneTimeSignerAccountC1.sol";
+import {Test, Vm} from "forge-std/Test.sol";
+import {OneTimeSignerAccountC1, OneTimeSignerAccountC1 as OTSC1} from "../src/OneTimeSignerAccountC1.sol";
 import {OTSProxyC1} from "../src/OTSProxyC1.sol";
 import {MockSetSelfDelegateHelper} from "./mocks/MockSetSelfDelegateHelper.sol";
 import {Witness, NotAnImplementation, WrongUUID, GasBurner} from "./mocks/C1Mocks.sol";
@@ -311,22 +311,37 @@ contract OneTimeSignerAccountC1Test is Test {
         assertTrue(_acct().isActiveManagementSigner(M3));
     }
 
-    function test_redelegate_invalidSuccessor_appliesAndReturnsFalse() public {
+    /// D-52 (c): an invalid successor means the code change does not apply (it applied in 6508e6eb, D-50).
+    function test_redelegate_invalidSuccessor_notApplied() public {
         _v1(impl);
         _emulateRetired();
+        vm.recordLogs();
         (bool ok, bytes memory res) = _redelegate(_redel(address(impl2), S1), M1_PK);
         assertFalse(ok);
         assertEq(res, abi.encodeWithSelector(OTSC1.SignerAlreadyConsumedOrReserved.selector, S1));
-        assertEq(_slot(), address(impl2), "redelegation applied");
+        assertEq(_slot(), address(impl), "redelegation not applied (I3)");
         assertFalse(_acct().isActiveManagementSigner(M1));
         assertTrue(_acct().isActiveManagementSigner(M2));
+        assertEq(_countTopic(vm.getRecordedLogs(), OTSC1.Redelegated.selector), 0, "no Redelegated event");
     }
 
-    function test_redelegate_beforeRetirement_reverts() public {
+    /// D-52 (f1): before retirement a redelegation no longer reverts before the signature; it consumes the key,
+    /// installs the successor and fails with NotRetired. The same signature is useless afterwards.
+    function test_redelegate_beforeRetirement_consumesAndFails() public {
         _v2Migrate();
         OTSC1.Redelegation memory r = _redel(address(impl2), M3);
         bytes memory sig = _sig(M1_PK, _acct().hashRedelegation(r));
-        vm.expectRevert(OTSC1.NotRetired.selector);
+        vm.prank(relayer);
+        (bool ok, bytes memory res) = _acct().redelegate(r, sig);
+        assertFalse(ok);
+        assertEq(res, abi.encodeWithSelector(OTSC1.NotRetired.selector));
+        assertFalse(_acct().isActiveManagementSigner(M1), "consumed");
+        assertTrue(_acct().isActiveManagementSigner(M3), "successor installed");
+        assertEq(_slot(), address(0));
+
+        vm.prank(A);
+        _acct().retire();
+        vm.expectRevert(abi.encodeWithSelector(OTSC1.ManagementSignerNotActive.selector, M1));
         _acct().redelegate(r, sig);
     }
 
@@ -378,6 +393,317 @@ contract OneTimeSignerAccountC1Test is Test {
         assertEq(_acct().managementEpoch(), 0);
         assertFalse(_acct().isActiveManagementSigner(M1));
         assertTrue(_acct().isActiveManagementSigner(M2));
+        // D-52 (b): the valid successor is installed although the recovery does not apply (I2, I3)
+        assertTrue(_acct().isActiveManagementSigner(M3), "successor installed");
+        assertEq(_acct().currentAuthorizedSigner(), S1);
+        assertEq(_activeCount(_all()), 2);
+    }
+
+    // ------------------------------------------------------------------ management rule (D-52 to D-55)
+
+    function _all() internal view returns (address[] memory m) {
+        m = new address[](4);
+        m[0] = M1;
+        m[1] = M2;
+        m[2] = M3;
+        m[3] = M4;
+    }
+
+    function _one(address x) internal pure returns (address[] memory m) {
+        m = new address[](1);
+        m[0] = x;
+    }
+
+    function _two(address x, address y) internal pure returns (address[] memory m) {
+        m = new address[](2);
+        m[0] = x;
+        m[1] = y;
+    }
+
+    function _none() internal pure returns (address[] memory m) {
+        m = new address[](0);
+    }
+
+    function _assertState(
+        address signer,
+        bool paused,
+        uint256 epoch,
+        address slot,
+        address[] memory active,
+        address[] memory inactive
+    ) internal view {
+        assertEq(_acct().currentAuthorizedSigner(), signer, "signer");
+        assertEq(_acct().isPaused(), paused, "pause");
+        assertEq(_acct().managementEpoch(), epoch, "epoch");
+        assertEq(_slot(), slot, "slot");
+        for (uint256 i; i < active.length; ++i) {
+            assertTrue(_acct().isActiveManagementSigner(active[i]), "expected active");
+        }
+        for (uint256 i; i < inactive.length; ++i) {
+            assertFalse(_acct().isActiveManagementSigner(inactive[i]), "expected inactive");
+        }
+    }
+
+    function _countTopic(Vm.Log[] memory logs, bytes32 topic0) internal pure returns (uint256 n) {
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics.length > 0 && logs[i].topics[0] == topic0) ++n;
+        }
+    }
+
+    function _recoverAt(address nextAuth, address nextM, uint256 pk, uint256 deadline)
+        internal
+        returns (bool ok, bytes memory res)
+    {
+        OTSC1.RecoveryOperation memory r =
+            OTSC1.RecoveryOperation({nextAuthorizedSigner: nextAuth, nextManagementSigner: nextM, deadline: deadline});
+        bytes memory sig = _sig(pk, _acct().hashRecoveryOperation(r));
+        vm.prank(relayer);
+        return _acct().signedRecovery(r, sig);
+    }
+
+    /// P-1 (#109): a valid signer with an invalid successor applies nothing (D-52 A, I3).
+    function test_recovery_invalidSuccessor_appliesNothing() public {
+        _v1(impl);
+        _emulateRetired();
+        address[3] memory bad = [M2, address(0), S3];
+        bytes[3] memory err = [
+            abi.encodeWithSelector(OTSC1.SignerAlreadyConsumedOrReserved.selector, M2),
+            abi.encodeWithSelector(OTSC1.InvalidNewManagementSigner.selector),
+            abi.encodeWithSelector(OTSC1.SignerAlreadyConsumedOrReserved.selector, S3)
+        ];
+        for (uint256 k; k < 3; ++k) {
+            uint256 snap = vm.snapshotState();
+            (bool ok, bytes memory res) = _recover(S3, bad[k], M1_PK);
+            assertFalse(ok);
+            assertEq(res, err[k]);
+            _assertState(S1, false, 0, address(impl), _one(M2), _one(M1));
+            assertEq(_activeCount(_all()), 1);
+            assertFalse(_acct().isConsumedOrReservedSigner(S3), "the operational signer is not burnt");
+            vm.revertToState(snap);
+        }
+    }
+
+    function test_directRecovery_invalidSuccessor_appliesNothing() public {
+        _v1(impl);
+        _emulateRetired();
+        address[3] memory bad = [M2, address(0), S3];
+        for (uint256 k; k < 3; ++k) {
+            uint256 snap = vm.snapshotState();
+            vm.prank(M1);
+            (bool ok,) = _acct().rotateAuthorizedSignerThroughRecovery(S3, bad[k]);
+            assertFalse(ok);
+            _assertState(S1, false, 0, address(impl), _one(M2), _one(M1));
+            assertEq(_activeCount(_all()), 1);
+            vm.revertToState(snap);
+        }
+    }
+
+    function test_recovery_expired_installsSuccessor() public {
+        _v1(impl);
+        _emulateRetired();
+        uint256 dl = block.timestamp + 1 hours;
+        vm.warp(dl + 1);
+        (bool ok, bytes memory res) = _recoverAt(S3, M3, M1_PK, dl);
+        assertFalse(ok);
+        assertEq(res, abi.encodeWithSelector(OTSC1.ExpiredOperation.selector, dl));
+        _assertState(S1, false, 0, address(impl), _two(M2, M3), _one(M1));
+    }
+
+    function test_recovery_expiredAndInvalidSuccessor_returnsExpired() public {
+        _v1(impl);
+        _emulateRetired();
+        uint256 dl = block.timestamp + 1 hours;
+        vm.warp(dl + 1);
+        (bool ok, bytes memory res) = _recoverAt(S3, address(0), M1_PK, dl);
+        assertFalse(ok);
+        assertEq(res, abi.encodeWithSelector(OTSC1.ExpiredOperation.selector, dl), "action error first");
+        _assertState(S1, false, 0, address(impl), _one(M2), _one(M1));
+        assertEq(_activeCount(_all()), 1, "no successor registered");
+    }
+
+    function test_lastMu_invalidSigner_keepsChain() public {
+        _v1(impl);
+        _emulateRetired();
+        (bool ok,) = _recover(S3, M3, M1_PK);
+        assertTrue(ok);
+        (ok,) = _recover(S1, M4, M3_PK);
+        assertFalse(ok);
+        _assertState(S3, false, 1, address(impl), _one(M4), _two(M3, M2));
+        assertEq(_activeCount(_all()), 1);
+    }
+
+    function test_lastMu_expired_keepsChain() public {
+        _v1(impl);
+        _emulateRetired();
+        _recover(S3, M3, M1_PK);
+        uint256 dl = block.timestamp + 1 hours;
+        vm.warp(dl + 1);
+        (bool ok,) = _recoverAt(S2, M4, M3_PK, dl);
+        assertFalse(ok);
+        _assertState(S3, false, 1, address(impl), _one(M4), _one(M3));
+        assertEq(_activeCount(_all()), 1);
+    }
+
+    /// Declared limit (D-54, #112): the last key names an invalid successor.
+    function test_lastMu_redelegationInvalidSuccessor_notApplied() public {
+        _v1(impl);
+        _emulateRetired();
+        _recover(S3, M3, M1_PK);
+        (bool ok,) = _redelegate(_redel(address(impl2), S1), M3_PK);
+        assertFalse(ok);
+        _assertState(S3, false, 1, address(impl), _none(), _all());
+        assertEq(_activeCount(_all()), 0, "declared limit (D-54)");
+    }
+
+    function test_lastMu_invalidSuccessor_losesChain_declaredLimit() public {
+        _v1(impl);
+        _emulateRetired();
+        _recover(S3, M3, M1_PK);
+        (bool ok, bytes memory res) = _recover(S2, M3, M3_PK);
+        assertFalse(ok);
+        assertEq(res, abi.encodeWithSelector(OTSC1.SignerAlreadyConsumedOrReserved.selector, M3));
+        _assertState(S3, false, 1, address(impl), _none(), _all());
+        assertEq(_activeCount(_all()), 0, "declared limit (D-54)");
+    }
+
+    /// Inverse of DIS_08: paused and with its last key, a failed recovery keeps the chain, so the account
+    /// is not bricked.
+    function test_paused_lastMu_invalidSigner_notBricked() public {
+        _v1(impl);
+        _emulateRetired();
+        _recover(S3, M3, M1_PK);
+        (bool ok,) = _exec(_op(address(witness), "", S1), S3_PK); // consumed successor -> pause
+        assertFalse(ok);
+        assertTrue(_acct().isPaused());
+        (ok,) = _recover(S1, M4, M3_PK);
+        assertFalse(ok);
+        _assertState(S3, true, 1, address(impl), _one(M4), _one(M3));
+        address m5 = vm.addr(0xF00D);
+        (ok,) = _recover(S2, m5, M4_PK);
+        assertTrue(ok, "the chain survived");
+        _assertState(S2, false, 2, address(impl), _one(m5), _all());
+    }
+
+    function test_recovery_events() public {
+        _v1(impl);
+        _emulateRetired();
+        uint256 snap = vm.snapshotState();
+        vm.recordLogs();
+        _recover(S3, M2, M1_PK); // P-1: not applied
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(_countTopic(logs, OTSC1.AccountUnpaused.selector), 0);
+        assertEq(_countTopic(logs, OTSC1.ManagementEpochAdvanced.selector), 0);
+        assertEq(_countTopic(logs, OTSC1.RecoveryOperationFailed.selector), 1);
+        assertEq(_countTopic(logs, OTSC1.ManagementSignerConsumed.selector), 1);
+        assertEq(_countTopic(logs, OTSC1.ManagementSignerRotated.selector), 0);
+        vm.revertToState(snap);
+        vm.recordLogs();
+        _recover(S3, M3, M1_PK); // applied
+        logs = vm.getRecordedLogs();
+        assertEq(_countTopic(logs, OTSC1.AccountUnpaused.selector), 1);
+        assertEq(_countTopic(logs, OTSC1.ManagementEpochAdvanced.selector), 1);
+        assertEq(_countTopic(logs, OTSC1.RecoveryOperationFailed.selector), 0);
+        assertEq(_countTopic(logs, OTSC1.ManagementSignerRotated.selector), 1);
+    }
+
+    /// D-55: at least one management key at initialization.
+    function test_initialize_requiresManagementKey() public {
+        address[] memory empty = new address[](0);
+        vm.signAndAttachDelegation(address(impl), H_PK);
+        vm.prank(A);
+        vm.expectRevert(OTSC1.InvalidNewManagementSigner.selector);
+        OTSC1(A).initializeAndRetire(S1, empty);
+
+        vm.signAndAttachDelegation(address(impl), H_PK);
+        vm.prank(A);
+        vm.expectRevert(OTSC1.InvalidNewManagementSigner.selector);
+        OTSC1(A).initialize(S1, empty);
+    }
+
+    /// Recovery 2x2x2 (expired, signer valid, successor valid) and redelegation 2x2x2 (expired, implementation
+    /// compatible, successor valid). Checks the return value, its error priority and I1-I3 (D-53) in every cell.
+    function test_managementRule_matrix() public {
+        _v1(impl);
+        _emulateRetired();
+        NotAnImplementation bad = new NotAnImplementation();
+        for (uint256 c; c < 8; ++c) {
+            bool expired = c & 1 != 0;
+            bool goodSigner = c & 2 != 0;
+            bool goodSucc = c & 4 != 0;
+            uint256 snap = vm.snapshotState();
+            uint256 dl = block.timestamp + 1 hours;
+            if (expired) vm.warp(dl + 1);
+            uint256 before = _activeCount(_all());
+            (bool ok, bytes memory res) = _recoverAt(goodSigner ? S3 : S1, goodSucc ? M3 : M2, M1_PK, dl);
+            bool applies = !expired && goodSigner && goodSucc;
+            assertEq(ok, applies, "recovery applies iff all valid");
+            if (applies) {
+                assertEq(_activeCount(_all()), 1, "I1");
+                _assertState(S3, false, 1, address(impl), _one(M3), _two(M1, M2));
+            } else {
+                _assertState(S1, false, 0, address(impl), _none(), _one(M1)); // I3
+                if (expired) assertEq(bytes4(res), OTSC1.ExpiredOperation.selector);
+                else if (!goodSigner) assertEq(bytes4(res), OTSC1.SignerAlreadyConsumedOrReserved.selector);
+                if (goodSucc) {
+                    assertTrue(_acct().isActiveManagementSigner(M3));
+                    assertEq(_activeCount(_all()), before, "I2: consumes one, registers one");
+                } else {
+                    assertEq(_activeCount(_all()), before - 1);
+                }
+            }
+            vm.revertToState(snap);
+        }
+        for (uint256 c; c < 8; ++c) {
+            bool expired = c & 1 != 0;
+            bool goodImpl = c & 2 != 0;
+            bool goodSucc = c & 4 != 0;
+            uint256 snap = vm.snapshotState();
+            OTSC1.Redelegation memory r = OTSC1.Redelegation({
+                newImplementation: goodImpl ? address(impl2) : address(bad),
+                nextManagementSigner: goodSucc ? M3 : M2,
+                deadline: block.timestamp + 1 hours
+            });
+            bytes memory sig = _sig(M1_PK, _acct().hashRedelegation(r));
+            if (expired) vm.warp(r.deadline + 1);
+            uint256 before = _activeCount(_all());
+            vm.prank(relayer);
+            (bool ok, bytes memory res) = _acct().redelegate(r, sig);
+            bool applies = !expired && goodImpl && goodSucc;
+            assertEq(ok, applies, "redelegation applies iff all valid");
+            assertEq(_slot(), applies ? address(impl2) : address(impl), "I3");
+            assertEq(_acct().managementEpoch(), 0, "redelegation never advances the epoch");
+            assertFalse(_acct().isActiveManagementSigner(M1));
+            if (!applies) {
+                if (expired) assertEq(bytes4(res), OTSC1.ExpiredOperation.selector);
+                else if (!goodImpl) assertEq(bytes4(res), OTSC1.IncompatibleImplementation.selector);
+                else assertEq(bytes4(res), OTSC1.SignerAlreadyConsumedOrReserved.selector);
+            }
+            assertEq(_activeCount(_all()), goodSucc ? before : before - 1, "I2");
+            vm.revertToState(snap);
+        }
+    }
+
+    /// Port of DIS_14: no gas band in which a compatible redelegation consumes the key without applying.
+    function test_redelegate_noGasBand() public {
+        _v1(impl);
+        _emulateRetired();
+        GasProbe probe = new GasProbe();
+        OTSC1.Redelegation memory r = _redel(address(impl2), M3);
+        bytes memory sig = _sig(M1_PK, _acct().hashRedelegation(r));
+        bytes memory cd = abi.encodeCall(OTSC1.redelegate, (r, sig));
+        uint256[4] memory n;
+        for (uint256 g = 20_000; g <= 120_000; g += 10) {
+            try probe.tryAt(A, cd, g, M1, address(impl2)) {}
+            catch Error(string memory o) {
+                n[uint8(bytes(o)[0]) - 48]++;
+            }
+        }
+        emit log_named_uint("reverted", n[0]);
+        emit log_named_uint("applied", n[1]);
+        emit log_named_uint("consumed_without_effect", n[2]);
+        assertGt(n[1], 0);
+        assertEq(n[2], 0);
+        assertEq(n[3], 0);
     }
 
     // ------------------------------------------------------------------ ERC-1822, proxy and deployment
@@ -421,5 +747,18 @@ contract OneTimeSignerAccountC1Test is Test {
         (bool ok,) = A.call{value: 1 ether}("");
         assertTrue(ok);
         assertEq(A.balance, 11 ether);
+    }
+}
+
+/// @notice Calls with a given gas, classifies the outcome and reverts so that no state is kept (DIS_14).
+contract GasProbe {
+    function tryAt(address a, bytes calldata cd, uint256 g, address m, address newImpl) external {
+        (bool ok,) = a.call{gas: g}(cd);
+        uint256 outcome;
+        if (!ok) outcome = 0;
+        else if (OneTimeSignerAccountC1(payable(a)).implementation() == newImpl) outcome = 1;
+        else if (!OneTimeSignerAccountC1(payable(a)).isActiveManagementSigner(m)) outcome = 2;
+        else outcome = 3;
+        revert(string(abi.encodePacked(bytes1(uint8(48 + outcome)))));
     }
 }

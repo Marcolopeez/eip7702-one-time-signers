@@ -15,11 +15,16 @@ import {IERC1822Proxiable} from "@openzeppelin/contracts/interfaces/draft-IERC18
 ///      - The account then runs through `OTSProxyC1`, which delegates to the implementation stored in the
 ///        ERC-1967 slot of the account's storage. `_retire` writes that slot with this implementation.
 ///      - Management keys (`μ`, called recovery keys in OTS) recover the account and redelegate it by writing
-///        the slot (`redelegate`). Every recovery that counts revokes all other management keys (management
-///        epochs). A redelegation consumes the signing key and names a successor, but revokes nothing.
-///      - A redelegation requires an ERC-1822-compatible implementation. If it cannot be applied (incompatible
-///        implementation or expired message), it does not revert: the key is consumed, the slot is unchanged
-///        and the named successor is installed.
+///        the slot (`redelegate`). Every recovery that applies revokes all other management keys (management
+///        epochs, D-35). A redelegation consumes the signing key and names a successor, but revokes nothing.
+///      - Management rule (D-52, paper ESPECIFICACION §2.4.1), common to recovery and redelegation: once the
+///        signature of an active key is verified, the key is consumed and the function no longer reverts; the
+///        named successor is installed if valid, whether or not the action applies; the action (recovery or
+///        code change) applies only if the message is unexpired and all its fields, successor included, are
+///        valid. Otherwise nothing else changes and the function returns `(false, first error)`.
+///        Invariants I1-I3 (D-53) are checked by the tests.
+///      - A redelegation requires an ERC-1822-compatible implementation (D-49).
+///      - Initialization requires at least one management key (D-55).
 ///      - The EIP-712 domain name is "OneTimeSignerAccountC1", so OTS signatures are not valid here.
 ///      Under EIP-7702 delegation (directly or through the proxy), `address(this)` is the EOA and storage is
 ///      the EOA's storage.
@@ -274,7 +279,7 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
         return _rotateAuthorizedSignerOrPause(nextAuthorizedSigner);
     }
 
-    /// @notice Recovery by a direct call from an active management key.
+    /// @notice Recovery by a direct call from an active management key (management rule, D-52; no deadline).
     function rotateAuthorizedSignerThroughRecovery(address nextAuthorizedSigner, address nextManagementSigner)
         external
         onlyDelegatedAccount
@@ -284,7 +289,7 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
     {
         address managementSigner = msg.sender;
         _consumeManagementSigner(managementSigner);
-        return _recoverAuthorizedSigner(managementSigner, nextAuthorizedSigner, nextManagementSigner);
+        return _applyRecovery(managementSigner, nextAuthorizedSigner, nextManagementSigner, bytes(""));
     }
 
     // -------------------------------------------------------------------------
@@ -332,8 +337,8 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
     // Management: signed recovery and redelegation
     // -------------------------------------------------------------------------
 
-    /// @notice Recovery signed by an active management key. A recovery that installs the new authorized
-    ///         signer revokes every other management key (D-35).
+    /// @notice Recovery signed by an active management key (management rule, D-52). A recovery that applies
+    ///         revokes every other management key (D-35). Only context, initialization and signature revert.
     function signedRecovery(RecoveryOperation calldata recoveryOperation, bytes calldata signature)
         external
         onlyDelegatedAccount
@@ -344,53 +349,54 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
         if (!isActiveManagementSigner(recovered)) revert ManagementSignerNotActive(recovered);
         _consumeManagementSigner(recovered);
 
+        bytes memory actionError;
         if (block.timestamp > recoveryOperation.deadline) {
-            result = abi.encodeWithSelector(ExpiredOperation.selector, recoveryOperation.deadline);
-            emit RecoveryOperationFailed(address(this), recovered, recoveryOperation.nextAuthorizedSigner, result);
-            return (false, result);
+            actionError = abi.encodeWithSelector(ExpiredOperation.selector, recoveryOperation.deadline);
         }
-
-        return _recoverAuthorizedSigner(
-            recovered, recoveryOperation.nextAuthorizedSigner, recoveryOperation.nextManagementSigner
+        return _applyRecovery(
+            recovered, recoveryOperation.nextAuthorizedSigner, recoveryOperation.nextManagementSigner, actionError
         );
     }
 
-    /// @notice Changes the implementation in the ERC-1967 slot. Only after retirement and only with a
-    ///         signature of an active management key (D-22, D-23, D-48). The operational signer cannot do it.
-    /// @dev Once the signature is verified the key is consumed and the named successor is installed; if the
-    ///      redelegation cannot be applied, it returns `(false, reason)` without reverting (D-49).
+    /// @notice Changes the implementation in the ERC-1967 slot, with a signature of an active management key
+    ///         (D-22, D-23, D-48). The operational signer cannot do it. Management rule (D-52).
+    /// @dev Only context, initialization and signature revert. Once the signature is verified the key is
+    ///      consumed and the named successor is installed if valid. The slot is written only if the account is
+    ///      retired, the message is unexpired, the implementation is ERC-1822-compatible (D-49) and the successor
+    ///      is valid; otherwise it returns `(false, first error)` in that order and the slot is unchanged.
+    ///      The pause is not checked and not changed.
     function redelegate(Redelegation calldata redelegation, bytes calldata signature)
         external
         onlyDelegatedAccount
         onlyInitialized
         returns (bool success, bytes memory result)
     {
-        address previousImplementation = implementation();
-        if (previousImplementation == address(0)) revert NotRetired();
-
         address recovered = hashRedelegation(redelegation).recover(signature);
         if (!isActiveManagementSigner(recovered)) revert ManagementSignerNotActive(recovered);
         _consumeManagementSigner(recovered);
 
-        bytes memory successorError = _installManagementSuccessor(recovered, redelegation.nextManagementSigner);
+        address previousImplementation = implementation();
+        bytes memory actionError;
+        if (previousImplementation == address(0)) {
+            actionError = abi.encodeWithSelector(NotRetired.selector);
+        } else if (block.timestamp > redelegation.deadline) {
+            actionError = abi.encodeWithSelector(ExpiredOperation.selector, redelegation.deadline);
+        } else {
+            actionError = _validateImplementation(redelegation.newImplementation);
+        }
+        bytes memory successorError = _validateNewManagementSigner(redelegation.nextManagementSigner);
 
-        if (block.timestamp > redelegation.deadline) {
-            result = abi.encodeWithSelector(ExpiredOperation.selector, redelegation.deadline);
-            emit RedelegationFailed(address(this), recovered, redelegation.newImplementation, result);
-            return (false, result);
+        if (successorError.length == 0) _registerManagementSuccessor(recovered, redelegation.nextManagementSigner);
+
+        if (actionError.length == 0 && successorError.length == 0) {
+            StorageSlot.getAddressSlot(IMPLEMENTATION_SLOT).value = redelegation.newImplementation;
+            emit Redelegated(address(this), recovered, previousImplementation, redelegation.newImplementation);
+            return (true, bytes(""));
         }
 
-        result = _validateImplementation(redelegation.newImplementation);
-        if (result.length != 0) {
-            emit RedelegationFailed(address(this), recovered, redelegation.newImplementation, result);
-            return (false, result);
-        }
-
-        StorageSlot.getAddressSlot(IMPLEMENTATION_SLOT).value = redelegation.newImplementation;
-        emit Redelegated(address(this), recovered, previousImplementation, redelegation.newImplementation);
-
-        if (successorError.length != 0) return (false, successorError);
-        return (true, bytes(""));
+        result = actionError.length != 0 ? actionError : successorError;
+        emit RedelegationFailed(address(this), recovered, redelegation.newImplementation, result);
+        return (false, result);
     }
 
     // -------------------------------------------------------------------------
@@ -456,6 +462,7 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
         if (isInitialized) revert AlreadyInitialized();
         if (msg.sender != address(this)) revert UnauthorizedInitializer(msg.sender, address(this));
         if (firstAuthorizedSigner == address(0)) revert InvalidNextAuthorizedSigner();
+        if (initialManagementSigners.length == 0) revert InvalidNewManagementSigner(); // D-55
 
         isInitialized = true;
         isConsumedOrReservedSigner[address(this)] = true;
@@ -503,30 +510,43 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
         return (true, bytes(""));
     }
 
-    /// @dev As OTS, plus D-35: once the new authorized signer is installed, the epoch advances (revoking every
-    ///      other management key) and only the named successor is registered in the new epoch.
-    function _recoverAuthorizedSigner(address managementSigner, address nextAuthorizedSigner, address nextManagementSigner)
-        internal
-        returns (bool success, bytes memory result)
-    {
-        result = _validateNewAuthorizedSigner(nextAuthorizedSigner);
-        if (result.length != 0) {
-            emit RecoveryOperationFailed(address(this), managementSigner, nextAuthorizedSigner, result);
-            return (false, result);
+    /// @dev Recovery under the management rule (D-52), after the signing key `managementSigner` was consumed.
+    ///      Errors are computed on the prior state: `actionError` (expired, if given) or else an invalid next
+    ///      authorized signer; `successorError` if the successor is zero, consumed or reserved, active, or equal
+    ///      to the next authorized signer. With no error the recovery applies: it installs the signer, unpauses,
+    ///      advances the epoch (revoking every other key, D-35) and registers the successor in the new epoch.
+    ///      Otherwise nothing changes but the registration of a valid successor in the current epoch, and it
+    ///      returns `(false, actionError or successorError)` (I3, D-53).
+    function _applyRecovery(
+        address managementSigner,
+        address nextAuthorizedSigner,
+        address nextManagementSigner,
+        bytes memory actionError
+    ) internal returns (bool success, bytes memory result) {
+        if (actionError.length == 0) actionError = _validateNewAuthorizedSigner(nextAuthorizedSigner);
+        bytes memory successorError = _validateNewManagementSigner(nextManagementSigner);
+        if (successorError.length == 0 && nextManagementSigner == nextAuthorizedSigner) {
+            successorError = abi.encodeWithSelector(SignerAlreadyConsumedOrReserved.selector, nextManagementSigner);
         }
 
-        isConsumedOrReservedSigner[nextAuthorizedSigner] = true;
-        currentAuthorizedSigner = nextAuthorizedSigner;
-        if (isPaused) isPaused = false;
-        emit AccountUnpaused(address(this), managementSigner, nextAuthorizedSigner);
+        if (actionError.length == 0 && successorError.length == 0) {
+            isConsumedOrReservedSigner[nextAuthorizedSigner] = true;
+            currentAuthorizedSigner = nextAuthorizedSigner;
+            if (isPaused) isPaused = false;
+            emit AccountUnpaused(address(this), managementSigner, nextAuthorizedSigner);
 
-        uint256 newEpoch = managementEpoch + 1;
-        managementEpoch = newEpoch;
-        emit ManagementEpochAdvanced(address(this), newEpoch);
+            uint256 newEpoch = managementEpoch + 1;
+            managementEpoch = newEpoch;
+            emit ManagementEpochAdvanced(address(this), newEpoch);
 
-        result = _installManagementSuccessor(managementSigner, nextManagementSigner);
-        if (result.length != 0) return (false, result);
-        return (true, bytes(""));
+            _registerManagementSuccessor(managementSigner, nextManagementSigner);
+            return (true, bytes(""));
+        }
+
+        if (successorError.length == 0) _registerManagementSuccessor(managementSigner, nextManagementSigner);
+        result = actionError.length != 0 ? actionError : successorError;
+        emit RecoveryOperationFailed(address(this), managementSigner, nextAuthorizedSigner, result);
+        return (false, result);
     }
 
     function _consumeManagementSigner(address managementSigner) internal {
@@ -534,17 +554,11 @@ contract OneTimeSignerAccountC1 is IERC1822Proxiable {
         emit ManagementSignerConsumed(address(this), managementSigner);
     }
 
-    /// @dev Registers `nextManagementSigner` in the current epoch. Returns encoded error data if invalid.
-    function _installManagementSuccessor(address previousManagementSigner, address nextManagementSigner)
-        internal
-        returns (bytes memory)
-    {
-        bytes memory err = _validateNewManagementSigner(nextManagementSigner);
-        if (err.length != 0) return err;
+    /// @dev Registers an already validated `nextManagementSigner` in the current epoch.
+    function _registerManagementSuccessor(address previousManagementSigner, address nextManagementSigner) internal {
         isConsumedOrReservedSigner[nextManagementSigner] = true;
         _activeManagementSigner[managementEpoch][nextManagementSigner] = true;
         emit ManagementSignerRotated(address(this), previousManagementSigner, nextManagementSigner);
-        return bytes("");
     }
 
     function _validateNewAuthorizedSigner(address nextAuthorizedSigner) internal view returns (bytes memory) {
