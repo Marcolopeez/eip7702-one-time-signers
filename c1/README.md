@@ -27,3 +27,17 @@ El camino operacional (`executeSignedAndRotate`) es el de OTS y no tiene DELEGAT
 ## Despliegue (devnet de C1)
 
 Primero `OTSProxyC1`; después `OneTimeSignerAccountC1(proxy, helper)`, con el helper en la dirección fija del `alloc` de la devnet.
+
+## C1⁺ (dos fases)
+
+`src/TwoPhaseOTSAccountC1.sol` (d⁺) es una copia modificada de `OneTimeSignerAccountC1.sol` (`3edcbd25`) con **autorización en dos fases** en los tres caminos firmados (especificación: `revisiones/CR-ESPECIFICACION.md` del paper; D-160 a D-162 y D-167). Rama `research/c1-2p`. Los archivos de OTS-C1 no cambian (D-156).
+
+| Cambio | Regla |
+|---|---|
+| `commit(ℓ, δ, γ)`: cualquiera añade keccak256(δ ‖ γ) a la lista L[ℓ], con ℓ = H_loc(chainId ‖ a ‖ pk(k)), δ = H_dig(eip712(m) ‖ r) y γ = H_com(chainId ‖ a ‖ pk(k) ‖ δ); H_tag(x) = keccak256(keccak256(tag) ‖ x) | R5, R7 |
+| `executeSignedAndRotate`, `signedRecovery` y `redelegate` reciben además pk(k) (64 bytes), la sal r y las entradas saltadas; exigen que la primera entrada válida bajo ℓ case con el mensaje y que dirección(pk) sea la clave vigente o una `μ` activa; después, la lógica de OTS-C1 sin cambios | R1–R4, R8 |
+| Sin `rotateAuthorizedSigner` ni `rotateAuthorizedSignerThroughRecovery` | R6 |
+| La entrada de la posición 0 se borra al consumir la clave | D-167 |
+| Dominio EIP-712 `"TwoPhaseOTSAccountC1"`; storage de OTS-C1 en el mismo orden y, al final, `firstEntry` y `laterEntries` | Compatibilidad con `redelegate(d⁺)` desde OTS-C1 |
+
+**Tests:** `test/TwoPhaseOTSAccountC1.t.sol` (mocks en `test/mocks/TwoPhaseMocks.sol`): un test por oráculo T01–T16 de `experimentos/CR/ORACULOS.md` (T07a y T16 son de fallo esperado: el test pasa si el adversario gana), uno complementario y tres de gas (`--isolate -vv`). Resultados: `experimentos/CR/resultados/2026-11-25-3edcbd25.md`. El opcode se simula como en H3.
